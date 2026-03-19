@@ -2,7 +2,7 @@
 
 > Built by [liquidGuru](https://www.liquidguru.com) · Powered by [Claude AI](https://anthropic.com)
 
-idGuru uses Claude AI to automatically identify marine species in your underwater video footage and still photos, building a fully searchable archive of everything you've shot.
+idGuru uses Claude AI to automatically identify marine species in your underwater video footage and still photos, building a fully searchable archive of everything you've shot. You can also manually identify, correct, or confirm any species — giving you complete control over your media catalogue.
 
 **[⬇️ Download latest release](https://github.com/liquidguru/idguru/releases/latest)**
 
