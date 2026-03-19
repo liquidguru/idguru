@@ -4,38 +4,7 @@
 
 idGuru uses Claude AI to automatically identify marine species in your underwater video footage and still photos, building a fully searchable archive of everything you've shot. You can also manually identify, correct, or confirm any species — giving you complete control over your media catalogue.
 
-**[⬇️ Download latest release](https://github.com/liquidguru/idguru/releases/latest)**
-
----
-
-## Screenshots
-
-![Home](docs/screenshots/home.jpg)
-*The idGuru home screen — overview, how it works, and quick start buttons*
-
-![Videos — Frames view](docs/screenshots/videos-frames.jpg)
-*Browse thousands of indexed video frames, filtered by species, location, site and more*
-
-![Videos — Clips view](docs/screenshots/videos-clips.jpg)
-*Clips view groups frames by video file for a higher-level overview*
-
-![Frame detail](docs/screenshots/frame-detail.jpg)
-*Click any frame to see full metadata — species tags, habitat, behaviours, notes, location and date*
-
-![Clip confirm ID](docs/screenshots/clip-confirm-id.jpg)
-*Confirm ID & Lookup at clip level — checkbox picker lets you choose which species to confirm*
-
-![Photos browse](docs/screenshots/photos-browse.jpg)
-*Photo archive with All Photos and By Species views*
-
-![Photo detail with species lookup](docs/screenshots/photo-detail.jpg)
-*Set ID Confidence to Confirmed and idGuru automatically fills in habitat, behaviours and notes*
-
-![Scan Videos/Photos](docs/screenshots/scan.jpg)
-*Scan any folder of videos or photos — choose your region, batch mode, and workers*
-
-![Settings](docs/screenshots/settings.jpg)
-*Settings — enter your Anthropic API key and set your default region*
+**[⬇️ Download latest release](https://github.com/liquidguru/idguru/releases/latest)** · **[📸 See screenshots](#screenshots)**
 
 ---
 
@@ -202,6 +171,37 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 
 **Blank cmd window appears on Windows**
 - Use `launcher.pyw` not `launcher.py` — the `.pyw` extension suppresses the console window
+
+---
+
+## Screenshots
+
+![Home](docs/screenshots/home.jpg)
+*The idGuru home screen — overview, how it works, and quick start buttons*
+
+![Videos — Frames view](docs/screenshots/videos-frames.jpg)
+*Browse thousands of indexed video frames, filtered by species, location, site and more*
+
+![Videos — Clips view](docs/screenshots/videos-clips.jpg)
+*Clips view groups frames by video file for a higher-level overview*
+
+![Frame detail](docs/screenshots/frame-detail.jpg)
+*Click any frame to see full metadata — species tags, habitat, behaviours, notes, location and date*
+
+![Clip confirm ID](docs/screenshots/clip-confirm-id.jpg)
+*Confirm ID & Lookup at clip level — checkbox picker lets you choose which species to confirm*
+
+![Photos browse](docs/screenshots/photos-browse.jpg)
+*Photo archive with All Photos and By Species views*
+
+![Photo detail with species lookup](docs/screenshots/photo-detail.jpg)
+*Set ID Confidence to Confirmed and idGuru automatically fills in habitat, behaviours and notes*
+
+![Scan Videos/Photos](docs/screenshots/scan.jpg)
+*Scan any folder of videos or photos — choose your region, batch mode, and workers*
+
+![Settings](docs/screenshots/settings.jpg)
+*Settings — enter your Anthropic API key and set your default region*
 
 ---
 
