@@ -1,6 +1,10 @@
 # idGuru — AI-Powered Underwater Species Identifier
 
+> Built by [liquidGuru](https://www.liquidguru.com) · Powered by [Claude AI](https://anthropic.com)
+
 idGuru uses Claude AI to automatically identify marine species in your underwater video footage and still photos, building a fully searchable archive of everything you've shot.
+
+**[⬇️ Download latest release](https://github.com/liquidguru/idguru/releases/latest)**
 
 ---
 
@@ -18,18 +22,20 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 ### Windows
 1. Install Python from https://www.python.org/downloads/ — tick **"Add Python to PATH"**
 2. Install ffmpeg and add it to PATH (see https://ffmpeg.org/download.html)
-3. Double-click **`setup.bat`** to install Python dependencies
-4. Double-click **`launcher.py`** to start idGuru
+3. Download the latest release zip and extract it
+4. Double-click **`setup.bat`** to install Python dependencies
+5. Double-click **`launcher.pyw`** to start idGuru
 
 ### macOS
 1. Install Python from https://www.python.org/downloads/ or via Homebrew: `brew install python`
 2. Install ffmpeg via Homebrew: `brew install ffmpeg`
-3. Open Terminal, navigate to the idGuru folder and run:
+3. Download the latest release zip and extract it
+4. Open Terminal, navigate to the idGuru folder and run:
    ```
    chmod +x setup.sh
    ./setup.sh
    ```
-4. Run `python3 launcher.py` or double-click it in Finder
+5. Run `python3 launcher.py` or double-click it in Finder
 
 ---
 
@@ -37,7 +43,7 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 
 1. Launch idGuru — it opens in your browser at `http://localhost:5000`
 2. Click the **⚙️ gear icon** (top right) to open Settings
-3. Enter your **Anthropic API key** and set your **default region**
+3. Enter your **Anthropic API key** (get one at [console.anthropic.com](https://console.anthropic.com)) and set your **default region**
 4. Click **Save**
 
 ---
@@ -71,17 +77,19 @@ For RAW files, install rawpy: `pip install rawpy`
 
 ## Regions supported
 
-- Indo-Pacific / Coral Triangle
-- Caribbean
-- Red Sea
-- UK / North Europe
-- West Coast USA
-- East Coast USA
-- Australia / New Zealand
-- Mediterranean
-- Japan
+| Region | Notes |
+|--------|-------|
+| Indo-Pacific / Coral Triangle | Lembeh, Ambon, Raja Ampat, Philippines |
+| Caribbean | Bonaire, Cayman, Roatan, Cozumel |
+| Red Sea | Dahab, Sharm, Brothers Islands |
+| UK / North Europe | Scotland, Norway, Farne Islands |
+| West Coast USA | California kelp forests, Oregon, Washington |
+| East Coast USA | North Carolina, Florida, New England |
+| Australia / New Zealand | GBR, Coral Sea, Poor Knights |
+| Mediterranean | Malta, Croatia, Greece |
+| Japan | Izu, Okinawa, Hokkaido |
 
-Each region provides Claude with relevant context to improve identification accuracy.
+Each region gives Claude context about local species to improve identification accuracy.
 
 ---
 
@@ -111,7 +119,7 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 ## Troubleshooting
 
 **"No API key" / nothing gets indexed**
-- Open Settings (⚙️) and enter your Anthropic API key
+- Open Settings (⚙️) and enter your Anthropic API key from [console.anthropic.com](https://console.anthropic.com)
 
 **"rawpy not installed" when scanning RAW files**
 - Run: `pip install rawpy`
@@ -122,8 +130,19 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 **VLC not opening at timestamp**
 - Make sure VLC is installed at the default location
 
+**Blank cmd window appears on Windows**
+- Use `launcher.pyw` not `launcher.py` — the `.pyw` extension suppresses the console window
+
+---
+
+## Licence
+
+Copyright (c) 2025 Kaj Maney / liquidGuru
+
+Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — free for personal, non-commercial use with attribution. See [LICENSE](LICENSE) for full terms.
+
 ---
 
 ## Credits
 
-Built by liquidGuru. Powered by [Claude](https://anthropic.com) from Anthropic.
+Built by [Kaj Maney / liquidGuru](https://www.liquidguru.com) · Powered by [Claude](https://anthropic.com) from Anthropic
