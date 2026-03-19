@@ -2501,6 +2501,9 @@ async function loadPhotoFolderList() {
             if not get_ai_client():
                 scan_queue.put({"type":"error","msg":"No API key set. Open Settings (gear icon) and enter your Anthropic API key."}); return
             root = Path(path)
+            if not root.exists():
+                scan_queue.put({"type":"error","msg":"Path not found: "+path}); return
+            indexed = {r[0] for r in conn.execute("SELECT path FROM videos")}
             videos = sorted({p for ext in VIDEO_EXTS for p in root.rglob("*"+ext) if str(p) not in indexed})
             if not videos:
                 scan_queue.put({"type":"done","msg":"No new videos found.","total":0}); return
