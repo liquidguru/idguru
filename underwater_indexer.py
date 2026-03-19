@@ -86,6 +86,10 @@ def init_db():
                 "country TEXT DEFAULT ''", "region TEXT DEFAULT ''", "area TEXT DEFAULT ''"]:
         try: conn.execute(f"ALTER TABLE videos ADD COLUMN {col}")
         except: pass
+    try: conn.execute("ALTER TABLE frames ADD COLUMN id_confidence TEXT DEFAULT ''")
+    except: pass
+    try: conn.execute("ALTER TABLE photos ADD COLUMN id_confidence TEXT DEFAULT ''")
+    except: pass
     conn.commit()
     return conn
 
@@ -932,6 +936,7 @@ button:hover{opacity:.85}
   <button class="btn-green btn-sm" onclick="bulkReviewed()">Mark Reviewed</button>
   <button class="btn-blue btn-sm" onclick="bulkSetSpecies()">Set Species</button>
   <button class="btn-slate btn-sm" onclick="bulkSetSiteDate()">Set Location/Date</button>
+  <button class="btn-purple btn-sm" onclick="openConfirmIDPicker('frames')">&#10003; Confirm ID &amp; Lookup</button>
   <button class="btn-slate btn-sm" onclick="clearSelection()">Clear</button>
 </div>
 
@@ -941,8 +946,25 @@ button:hover{opacity:.85}
   <button class="btn-green btn-sm" onclick="photosBulkReviewed()">Mark Reviewed</button>
   <button class="btn-blue btn-sm" onclick="photosBulkSetSpecies()">Set Species</button>
   <button class="btn-slate btn-sm" onclick="photosBulkSetSiteDate()">Set Location/Date</button>
+  <button class="btn-purple btn-sm" onclick="openConfirmIDPicker('photos')">&#10003; Confirm ID &amp; Lookup</button>
   <button class="btn-red btn-sm" onclick="photosBulkMarkDelete()">Mark for Delete</button>
   <button class="btn-slate btn-sm" onclick="clearPhotoSelection()">Clear</button>
+</div>
+
+<!-- CONFIRM ID SPECIES PICKER MODAL -->
+<div class="modal" id="confirm-id-modal" onclick="if(event.target===this)closeConfirmIDModal()">
+  <div class="mbox" style="max-width:420px">
+    <div class="mbody">
+      <div class="mtitle" style="margin-bottom:6px">&#10003; Confirm ID &amp; Lookup</div>
+      <p style="color:#475569;font-size:12px;margin-bottom:14px">Tick the species you want to confirm and look up. The habitat, behaviours and notes will be updated for all selected items.</p>
+      <div id="confirm-id-species-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px"></div>
+      <div id="confirm-id-progress" style="font-size:12px;color:#f59e0b;margin-bottom:10px;display:none"></div>
+      <div class="mactions">
+        <button class="btn-purple" onclick="runConfirmIDLookup()">Look up selected</button>
+        <button class="btn-slate" onclick="closeConfirmIDModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- BULK SPECIES MODAL -->
@@ -1016,6 +1038,7 @@ button:hover{opacity:.85}
       <div id="clip-frames-title" style="color:#38bdf8;font-weight:600;font-size:14px"></div>
       <div style="display:flex;gap:6px">
         <button class="btn-blue btn-sm" id="clip-set-species-btn">Set Species for all</button>
+        <button class="btn-purple btn-sm" id="clip-confirm-id-btn">&#10003; Confirm ID &amp; Lookup</button>
         <button class="btn-red btn-sm" id="clip-delete-btn">Mark all for Delete</button>
       </div>
     </div>
@@ -1073,12 +1096,36 @@ button:hover{opacity:.85}
         <button class="btn-blue btn-sm" onclick="addSpecies()">Add</button>
       </div>
 
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px">
+          <div class="lbl" style="margin-top:0">Water Visibility</div>
+          <select id="m-visibility" style="width:100%;font-size:12px;padding:5px 9px;margin-top:4px">
+            <option value="">—</option>
+            <option value="poor">Poor</option>
+            <option value="fair">Fair</option>
+            <option value="good">Good</option>
+            <option value="excellent">Excellent</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div class="lbl" style="margin-top:0">ID Confidence</div>
+          <select id="m-id-confidence" style="width:100%;font-size:12px;padding:5px 9px;margin-top:4px" onchange="idConfidenceChanged()">
+            <option value="">—</option>
+            <option value="uncertain">Uncertain</option>
+            <option value="probable">Probable</option>
+            <option value="confirmed">✅ Confirmed — Look up species</option>
+          </select>
+        </div>
+        <div id="lookup-status" style="font-size:12px;color:#f59e0b;align-self:flex-end;padding-bottom:6px"></div>
+      </div>
+
       <div class="lbl">Habitat</div>
-      <div id="m-habitat" style="color:#dbeafe;font-size:14px;margin-bottom:6px"></div>
-      <div class="lbl" id="beh-lbl" style="display:none">Behaviours</div>
-      <div id="m-behs" style="color:#dbeafe;font-size:14px;margin-bottom:6px"></div>
+      <textarea id="m-habitat" style="width:100%;background:#0c1e35;border:1px solid #1e3a5f;color:#dbeafe;padding:6px 9px;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;min-height:48px;margin-bottom:6px;font-family:inherit"></textarea>
+      <div class="lbl" id="beh-lbl">Behaviours</div>
+      <textarea id="m-behs" style="width:100%;background:#0c1e35;border:1px solid #1e3a5f;color:#dbeafe;padding:6px 9px;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;min-height:48px;margin-bottom:6px;font-family:inherit"></textarea>
       <div class="lbl">Notes</div>
-      <div id="m-notes" style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px"></div>
+      <textarea id="m-notes" style="width:100%;background:#0c1e35;border:1px solid #1e3a5f;color:#94a3b8;padding:6px 9px;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;min-height:60px;margin-bottom:4px;font-family:inherit"></textarea>
+      <button class="btn-slate btn-sm" style="margin-bottom:10px" onclick="saveFrameDetails()">Save Details</button>
 
       <div class="mactions">
         <button class="btn-green" onclick="openFile()">Open in VLC</button>
@@ -1140,12 +1187,38 @@ button:hover{opacity:.85}
         </div>
         <button class="btn-blue btn-sm" onclick="addPhotoSpecies()">Add</button>
       </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;margin-bottom:8px;flex-wrap:wrap">
+        <div style="flex:1;min-width:120px">
+          <div class="lbl" style="margin-top:0">Water Visibility</div>
+          <select id="pm-visibility" style="width:100%;font-size:12px;padding:5px 9px;margin-top:4px">
+            <option value="">—</option>
+            <option value="poor">Poor</option>
+            <option value="fair">Fair</option>
+            <option value="good">Good</option>
+            <option value="excellent">Excellent</option>
+          </select>
+        </div>
+        <div style="flex:1;min-width:140px">
+          <div class="lbl" style="margin-top:0">ID Confidence</div>
+          <select id="pm-id-confidence" style="width:100%;font-size:12px;padding:5px 9px;margin-top:4px" onchange="pmIdConfidenceChanged()">
+            <option value="">—</option>
+            <option value="uncertain">Uncertain</option>
+            <option value="probable">Probable</option>
+            <option value="confirmed">✅ Confirmed — Look up species</option>
+          </select>
+        </div>
+        <div id="pm-lookup-status" style="font-size:12px;color:#f59e0b;align-self:flex-end;padding-bottom:6px"></div>
+      </div>
+
       <div class="lbl">Habitat</div>
-      <div id="pm-habitat" style="color:#dbeafe;font-size:14px;margin-bottom:6px"></div>
-      <div class="lbl" id="pm-beh-lbl" style="display:none">Behaviours</div>
-      <div id="pm-behs" style="color:#dbeafe;font-size:14px;margin-bottom:6px"></div>
+      <textarea id="pm-habitat" style="width:100%;background:#0c1e35;border:1px solid #1e3a5f;color:#dbeafe;padding:6px 9px;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;min-height:48px;margin-bottom:6px;font-family:inherit"></textarea>
+      <div class="lbl" id="pm-beh-lbl">Behaviours</div>
+      <textarea id="pm-behs" style="width:100%;background:#0c1e35;border:1px solid #1e3a5f;color:#dbeafe;padding:6px 9px;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;min-height:48px;margin-bottom:6px;font-family:inherit"></textarea>
       <div class="lbl">Notes</div>
-      <div id="pm-notes" style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:4px"></div>
+      <textarea id="pm-notes" style="width:100%;background:#0c1e35;border:1px solid #1e3a5f;color:#94a3b8;padding:6px 9px;border-radius:8px;font-size:13px;line-height:1.5;resize:vertical;min-height:60px;margin-bottom:4px;font-family:inherit"></textarea>
+      <button class="btn-slate btn-sm" style="margin-bottom:10px" onclick="savePhotoDetails()">Save Details</button>
+
       <div class="mactions">
         <button class="btn-green" onclick="openPhoto()">Open Photo</button>
         <button class="btn-amber" onclick="openPhotoFolder()">Open Folder</button>
@@ -1322,6 +1395,11 @@ async function showClipFrames(vidId, filename) {
   document.getElementById('clip-frames-modal').classList.add('show');
   document.getElementById('clip-frames-mbox').scrollTop = 0;
   document.getElementById('clip-set-species-btn').addEventListener('click', function(){ clipBulkSpecies(vidId); });
+  document.getElementById('clip-confirm-id-btn').addEventListener('click', function(){
+    var frameIds = Object.keys(window._frames);
+    document.getElementById('clip-frames-modal').classList.remove('show');
+    openConfirmIDPickerForClip(frameIds);
+  });
   document.getElementById('clip-delete-btn').addEventListener('click', function(){ clipBulkDelete(vidId); });
   document.getElementById('clip-frames-inner').querySelectorAll('.card').forEach(function(el) {
     el.addEventListener('click', function() {
@@ -1737,7 +1815,10 @@ function showModal(f) {
   current = f; current.species = current.species || [];
   document.getElementById('m-img').src='/thumb/'+f.id;
   document.getElementById('m-title').textContent=f.filename;
-  document.getElementById('m-sub').textContent='Timestamp: '+fmt(f.timestamp)+'  Visibility: '+(f.visibility||'');
+  document.getElementById('m-sub').textContent='Timestamp: '+fmt(f.timestamp);
+  document.getElementById('m-visibility').value=f.visibility||'';
+  document.getElementById('m-id-confidence').value=f.id_confidence||'';
+  document.getElementById('lookup-status').textContent='';
   document.getElementById('m-country').value=f.country||'';
   document.getElementById('m-region').value=f.region||'';
   document.getElementById('m-area').value=f.area||'';
@@ -1745,11 +1826,9 @@ function showModal(f) {
   document.getElementById('m-date').value=f.dive_date||'';
   ['country-ac-list','region-ac-list','area-ac-list','site-ac-list'].forEach(function(id){ document.getElementById(id).style.display=NONE; });
   renderSpeciesTags(current.species);
-  document.getElementById('m-habitat').textContent=f.habitat||'';
-  var behs=f.behaviours||[];
-  document.getElementById('beh-lbl').style.display=behs.length?'':NONE;
-  document.getElementById('m-behs').textContent=behs.join(' ');
-  document.getElementById('m-notes').textContent=f.notes||'';
+  document.getElementById('m-habitat').value=f.habitat||'';
+  document.getElementById('m-behs').value=(f.behaviours||[]).join(', ');
+  document.getElementById('m-notes').value=f.notes||'';
   document.getElementById('m-note').textContent='';
   document.getElementById('new-species').value='';
   document.getElementById('ac-list').style.display=NONE;
@@ -1761,6 +1840,51 @@ function showModal(f) {
 }
 
 function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+async function saveFrameDetails() {
+  if (!current) return;
+  var habitat = document.getElementById('m-habitat').value.trim();
+  var behs = document.getElementById('m-behs').value.trim();
+  var notes = document.getElementById('m-notes').value.trim();
+  var visibility = document.getElementById('m-visibility').value;
+  var id_confidence = document.getElementById('m-id-confidence').value;
+  var behaviours = behs ? behs.split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
+  await fetch('/api/update_frame', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id:current.id, habitat:habitat, behaviours:behaviours, notes:notes, visibility:visibility, id_confidence:id_confidence})});
+  current.habitat=habitat; current.behaviours=behaviours; current.notes=notes; current.visibility=visibility; current.id_confidence=id_confidence;
+  document.getElementById('m-note').textContent='Saved.';
+  setTimeout(function(){document.getElementById('m-note').textContent='';},1500);
+  load();
+}
+
+async function idConfidenceChanged() {
+  var val = document.getElementById('m-id-confidence').value;
+  if (val !== 'confirmed') return;
+  if (!current || !current.species || !current.species.length) {
+    alert('Please add a species name first before looking up.');
+    document.getElementById('m-id-confidence').value = current.id_confidence || '';
+    return;
+  }
+  var status = document.getElementById('lookup-status');
+  status.textContent = 'Looking up species info...';
+  status.style.color = '#f59e0b';
+  var r = await fetch('/api/lookup_species', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({frame_id: current.id, species: current.species, type: 'frame'})});
+  var d = await r.json();
+  if (d.ok) {
+    document.getElementById('m-habitat').value = d.habitat || '';
+    document.getElementById('m-behs').value = (d.behaviours||[]).join(', ');
+    document.getElementById('m-notes').value = d.notes || '';
+    current.habitat=d.habitat; current.behaviours=d.behaviours; current.notes=d.notes;
+    status.textContent = 'Done! Review and save.';
+    status.style.color = '#22c55e';
+    setTimeout(function(){status.textContent='';},3000);
+  } else {
+    status.textContent = 'Lookup failed: '+(d.error||'unknown');
+    status.style.color = '#ef4444';
+    document.getElementById('m-id-confidence').value = current.id_confidence || '';
+  }
+}
 
 function editSpecies(i) {
   var n=prompt('Edit species name:',current.species[i]);
@@ -2123,11 +2247,13 @@ function showPhotoModal(p) {
   document.getElementById('pm-date').value = p.dive_date||'';
   ['pm-country-ac-list','pm-region-ac-list','pm-area-ac-list','pm-site-ac-list'].forEach(function(id){ document.getElementById(id).style.display=NONE; });
   renderPhotoSpeciesTags(currentPhoto.species);
-  document.getElementById('pm-habitat').textContent = p.habitat||'';
+  document.getElementById('pm-habitat').value = p.habitat||'';
   var behs = p.behaviours||[];
-  document.getElementById('pm-beh-lbl').style.display = behs.length ? '' : NONE;
-  document.getElementById('pm-behs').textContent = behs.join(' ');
-  document.getElementById('pm-notes').textContent = p.notes||'';
+  document.getElementById('pm-behs').value = behs.join(', ');
+  document.getElementById('pm-notes').value = p.notes||'';
+  document.getElementById('pm-visibility').value = p.visibility||'';
+  document.getElementById('pm-id-confidence').value = p.id_confidence||'';
+  document.getElementById('pm-lookup-status').textContent = '';
   document.getElementById('pm-note').textContent = '';
   document.getElementById('pm-new-species').value = '';
   document.getElementById('pm-ac-list').style.display = NONE;
@@ -2143,6 +2269,51 @@ function showPhotoModal(p) {
 }
 
 function closePhotoModal() { document.getElementById('photo-modal').classList.remove('show'); }
+
+async function savePhotoDetails() {
+  if (!currentPhoto) return;
+  var habitat = document.getElementById('pm-habitat').value.trim();
+  var behs = document.getElementById('pm-behs').value.trim();
+  var notes = document.getElementById('pm-notes').value.trim();
+  var visibility = document.getElementById('pm-visibility').value;
+  var id_confidence = document.getElementById('pm-id-confidence').value;
+  var behaviours = behs ? behs.split(',').map(function(s){return s.trim();}).filter(Boolean) : [];
+  await fetch('/api/update_photo', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({id:currentPhoto.id, habitat:habitat, behaviours:behaviours, notes:notes, visibility:visibility, id_confidence:id_confidence})});
+  currentPhoto.habitat=habitat; currentPhoto.behaviours=behaviours; currentPhoto.notes=notes; currentPhoto.visibility=visibility; currentPhoto.id_confidence=id_confidence;
+  document.getElementById('pm-note').textContent='Saved.';
+  setTimeout(function(){document.getElementById('pm-note').textContent='';},1500);
+  loadPhotos();
+}
+
+async function pmIdConfidenceChanged() {
+  var val = document.getElementById('pm-id-confidence').value;
+  if (val !== 'confirmed') return;
+  if (!currentPhoto || !currentPhoto.species || !currentPhoto.species.length) {
+    alert('Please add a species name first before looking up.');
+    document.getElementById('pm-id-confidence').value = currentPhoto.id_confidence || '';
+    return;
+  }
+  var status = document.getElementById('pm-lookup-status');
+  status.textContent = 'Looking up species info...';
+  status.style.color = '#f59e0b';
+  var r = await fetch('/api/lookup_species', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({frame_id: currentPhoto.id, species: currentPhoto.species, type: 'photo'})});
+  var d = await r.json();
+  if (d.ok) {
+    document.getElementById('pm-habitat').value = d.habitat || '';
+    document.getElementById('pm-behs').value = (d.behaviours||[]).join(', ');
+    document.getElementById('pm-notes').value = d.notes || '';
+    currentPhoto.habitat=d.habitat; currentPhoto.behaviours=d.behaviours; currentPhoto.notes=d.notes;
+    status.textContent = 'Done! Review and save.';
+    status.style.color = '#22c55e';
+    setTimeout(function(){status.textContent='';},3000);
+  } else {
+    status.textContent = 'Lookup failed: '+(d.error||'unknown');
+    status.style.color = '#ef4444';
+    document.getElementById('pm-id-confidence').value = currentPhoto.id_confidence || '';
+  }
+}
 
 function renderPhotoSpeciesTags(species) {
   document.getElementById('pm-species').innerHTML = (species||[]).map(function(s,i){
@@ -2405,6 +2576,100 @@ async function photosBulkUpdate(payload) {
 function photosBulkReviewed() { photosBulkUpdate({reviewed:1}); }
 function photosBulkMarkDelete() { photosBulkUpdate({marked_delete:1}); }
 
+// ── Confirm ID & Lookup ───────────────────────────────────────────────────────
+
+var _confirmIDTarget = null; // 'frames', 'photos', or 'clip'
+var _confirmIDClipIds = null;
+
+function openConfirmIDPicker(target) {
+  var ids = target === 'photos' ? Object.keys(selectedPhotos) : Object.keys(selected);
+  if (!ids.length) return;
+  _confirmIDTarget = target;
+  _confirmIDClipIds = null;
+  // Collect all unique species across selected items
+  var allSpecies = {};
+  var frames = target === 'photos' ? window._photos : window._frames;
+  ids.forEach(function(id) {
+    var item = frames[id];
+    if (item && item.species) {
+      item.species.forEach(function(s) { allSpecies[s] = true; });
+    }
+  });
+  showConfirmIDModal(Object.keys(allSpecies));
+}
+
+function openConfirmIDPickerForClip(frameIds) {
+  _confirmIDTarget = 'clip';
+  _confirmIDClipIds = frameIds;
+  var allSpecies = {};
+  frameIds.forEach(function(id) {
+    var item = window._frames[id];
+    if (item && item.species) {
+      item.species.forEach(function(s) { allSpecies[s] = true; });
+    }
+  });
+  showConfirmIDModal(Object.keys(allSpecies));
+}
+
+function showConfirmIDModal(species) {
+  var list = document.getElementById('confirm-id-species-list');
+  if (!species.length) {
+    alert('No species tagged on selected items. Please tag species first.');
+    return;
+  }
+  list.innerHTML = species.map(function(s) {
+    return '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 8px;background:#071828;border-radius:6px">' +
+      '<input type="checkbox" value="' + s.replace(/"/g, '&quot;') + '" style="width:14px;height:14px;cursor:pointer"> ' +
+      '<span style="color:#dbeafe;font-size:13px">' + s + '</span></label>';
+  }).join('');
+  document.getElementById('confirm-id-progress').style.display = 'none';
+  document.getElementById('confirm-id-modal').classList.add('show');
+}
+
+function closeConfirmIDModal() {
+  document.getElementById('confirm-id-modal').classList.remove('show');
+  _confirmIDTarget = null; _confirmIDClipIds = null;
+}
+
+async function runConfirmIDLookup() {
+  var checked = Array.from(document.getElementById('confirm-id-species-list').querySelectorAll('input:checked'));
+  if (!checked.length) { alert('Please tick at least one species.'); return; }
+  var chosenSpecies = checked.map(function(c){ return c.value; });
+  var ids = _confirmIDTarget === 'photos' ? Object.keys(selectedPhotos)
+          : _confirmIDTarget === 'clip' ? _confirmIDClipIds
+          : Object.keys(selected);
+  var itemType = _confirmIDTarget === 'photos' ? 'photo' : 'frame';
+  var progress = document.getElementById('confirm-id-progress');
+  progress.style.display = 'block';
+  progress.style.color = '#f59e0b';
+  progress.textContent = 'Looking up ' + chosenSpecies.join(', ') + '...';
+  // Run lookup once for the chosen species to get the info
+  try {
+    var r = await fetch('/api/lookup_species', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({species: chosenSpecies, type: itemType})});
+    var d = await r.json();
+    if (!d.ok) { progress.style.color='#ef4444'; progress.textContent='Lookup failed: '+(d.error||'unknown'); return; }
+    // Now apply to all selected items
+    progress.textContent = 'Applying to ' + ids.length + ' item(s)...';
+    var table = itemType === 'photo' ? 'update_photo' : 'update_frame';
+    for (var i = 0; i < ids.length; i++) {
+      await fetch('/api/' + table, {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({id: ids[i], habitat: d.habitat, behaviours: d.behaviours,
+          notes: d.notes, id_confidence: 'confirmed', species: chosenSpecies})});
+    }
+    progress.style.color = '#22c55e';
+    progress.textContent = 'Done! ' + ids.length + ' item(s) updated.';
+    setTimeout(function(){
+      closeConfirmIDModal();
+      if (_confirmIDTarget === 'photos') { clearPhotoSelection(); }
+      else { clearSelection(); }
+    }, 1500);
+  } catch(e) {
+    progress.style.color = '#ef4444';
+    progress.textContent = 'Error: ' + e.message;
+  }
+}
+
 function photosBulkSetSpecies() {
   var n = Object.keys(selectedPhotos).length; if (!n) return;
   document.getElementById('bulk-count').textContent = n;
@@ -2637,13 +2902,14 @@ async function loadPhotoFolderList() {
         sql = ("SELECT f.id, v.filename, v.path, f.timestamp, f.species, f.habitat, "
                "f.visibility, f.notes, f.behaviours, COALESCE(f.reviewed,0), COALESCE(f.marked_delete,0), "
                "COALESCE(v.dive_site,''), COALESCE(v.dive_date,''), COALESCE(v.country,''), "
-               "COALESCE(v.region,''), COALESCE(v.area,'') "
+               "COALESCE(v.region,''), COALESCE(v.area,''), COALESCE(f.id_confidence,'') "
                +base+" ORDER BY v.filename, f.timestamp LIMIT ? OFFSET ?")
         rows = db.execute(sql, params+[page_size, offset]).fetchall()
         items = [{"id":r[0],"filename":r[1],"path":r[2],"timestamp":r[3],
             "species":json.loads(r[4] or "[]"),"habitat":r[5],"visibility":r[6],
             "notes":r[7],"behaviours":json.loads(r[8] or "[]"),"reviewed":r[9],"marked_delete":r[10],
-            "dive_site":r[11],"dive_date":r[12],"country":r[13],"region":r[14],"area":r[15]} for r in rows]
+            "dive_site":r[11],"dive_date":r[12],"country":r[13],"region":r[14],"area":r[15],
+            "id_confidence":r[16]} for r in rows]
         # For vid_id queries return flat list (used by clip frame strip)
         if vid_id: return jsonify(items)
         return jsonify({"items":items,"total":total})
@@ -2759,8 +3025,55 @@ async function loadPhotoFolderList() {
         if "species" in data: db.execute("UPDATE frames SET species=? WHERE id=?",(json.dumps(data["species"]),fid))
         if "reviewed" in data: db.execute("UPDATE frames SET reviewed=? WHERE id=?",(data["reviewed"],fid))
         if "marked_delete" in data: db.execute("UPDATE frames SET marked_delete=? WHERE id=?",(data["marked_delete"],fid))
+        if "habitat" in data: db.execute("UPDATE frames SET habitat=? WHERE id=?",(data["habitat"],fid))
+        if "behaviours" in data: db.execute("UPDATE frames SET behaviours=? WHERE id=?",(json.dumps(data["behaviours"]),fid))
+        if "notes" in data: db.execute("UPDATE frames SET notes=? WHERE id=?",(data["notes"],fid))
+        if "visibility" in data: db.execute("UPDATE frames SET visibility=? WHERE id=?",(data["visibility"],fid))
+        if "id_confidence" in data: db.execute("UPDATE frames SET id_confidence=? WHERE id=?",(data["id_confidence"],fid))
         db.commit()
         return jsonify({"ok":True})
+
+    @app.route("/api/lookup_species", methods=["POST"])
+    def lookup_species():
+        data = request.json
+        species = data.get("species", [])
+        fid = data.get("frame_id")
+        item_type = data.get("type", "frame")
+        if not species: return jsonify({"error": "no species"}), 400
+        client = get_ai_client()
+        if not client: return jsonify({"error": "No API key set"}), 400
+        species_str = ", ".join(species)
+        try:
+            resp = client.messages.create(
+                model=MODEL, max_tokens=800,
+                messages=[{"role": "user", "content":
+                    f"Give me a brief factual summary about the marine species: {species_str}\n\n"
+                    f"Format your response in exactly these 3 sections with these exact labels:\n"
+                    f"HABITAT: one sentence about substrate, depth range and environment\n"
+                    f"BEHAVIOURS: comma-separated list of 3-4 known behaviours\n"
+                    f"NOTES: 2-3 sentences covering interesting facts, conservation status, and typical size"}])
+            txt = resp.content[0].text.strip()
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        # Parse plain text sections — no JSON needed
+        habitat, behaviours_str, notes = "", "", ""
+        for line in txt.splitlines():
+            if line.startswith("HABITAT:"):
+                habitat = line[8:].strip()
+            elif line.startswith("BEHAVIOURS:"):
+                behaviours_str = line[11:].strip()
+            elif line.startswith("NOTES:"):
+                notes = line[6:].strip()
+            elif notes:
+                notes += " " + line.strip()  # capture multi-line notes
+        behaviours = [b.strip() for b in behaviours_str.split(",") if b.strip()]
+        db = get_db()
+        if fid:
+            table = "frames" if item_type == "frame" else "photos"
+            db.execute(f"UPDATE {table} SET habitat=?, behaviours=?, notes=?, id_confidence=? WHERE id=?",
+                       (habitat, json.dumps(behaviours), notes, "confirmed", fid))
+            db.commit()
+        return jsonify({"ok": True, "habitat": habitat, "behaviours": behaviours, "notes": notes})
 
     @app.route("/api/bulk_update", methods=["POST"])
     def bulk_update():
@@ -2846,13 +3159,14 @@ async function loadPhotoFolderList() {
         rows = db.execute("SELECT id,path,filename,filesize,species,habitat,visibility,behaviours,notes,"
                           "COALESCE(reviewed,0),COALESCE(marked_delete,0),"
                           "COALESCE(dive_site,''),COALESCE(dive_date,''),COALESCE(country,''),"
-                          "COALESCE(region,''),COALESCE(area,'') "+base
+                          "COALESCE(region,''),COALESCE(area,''),COALESCE(id_confidence,'') "+base
                           +" ORDER BY filename LIMIT ? OFFSET ?", params+[page_size,offset]).fetchall()
         items = [{"id":r[0],"path":r[1],"filename":r[2],"filesize":r[3],
                   "species":json.loads(r[4] or "[]"),"habitat":r[5],"visibility":r[6],
                   "behaviours":json.loads(r[7] or "[]"),"notes":r[8],
                   "reviewed":r[9],"marked_delete":r[10],
-                  "dive_site":r[11],"dive_date":r[12],"country":r[13],"region":r[14],"area":r[15]} for r in rows]
+                  "dive_site":r[11],"dive_date":r[12],"country":r[13],"region":r[14],"area":r[15],
+                  "id_confidence":r[16]} for r in rows]
         return jsonify({"items":items,"total":total})
 
     @app.route("/api/photo_species")
@@ -2915,6 +3229,11 @@ async function loadPhotoFolderList() {
         if "species" in data: db.execute("UPDATE photos SET species=? WHERE id=?",(json.dumps(data["species"]),pid))
         if "reviewed" in data: db.execute("UPDATE photos SET reviewed=? WHERE id=?",(data["reviewed"],pid))
         if "marked_delete" in data: db.execute("UPDATE photos SET marked_delete=? WHERE id=?",(data["marked_delete"],pid))
+        if "habitat" in data: db.execute("UPDATE photos SET habitat=? WHERE id=?",(data["habitat"],pid))
+        if "behaviours" in data: db.execute("UPDATE photos SET behaviours=? WHERE id=?",(json.dumps(data["behaviours"]),pid))
+        if "notes" in data: db.execute("UPDATE photos SET notes=? WHERE id=?",(data["notes"],pid))
+        if "visibility" in data: db.execute("UPDATE photos SET visibility=? WHERE id=?",(data["visibility"],pid))
+        if "id_confidence" in data: db.execute("UPDATE photos SET id_confidence=? WHERE id=?",(data["id_confidence"],pid))
         db.commit()
         return jsonify({"ok":True})
 
