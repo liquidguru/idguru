@@ -11,7 +11,7 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 ## Requirements
 
 - **Python 3.10 or later** — https://www.python.org/downloads/
-- **ffmpeg** (for video indexing) — https://ffmpeg.org/download.html
+- **ffmpeg** (for video indexing) — installed via winget (see below)
 - **An Anthropic API key** — https://console.anthropic.com
 - **VLC** (optional, for opening video at timestamps) — https://www.videolan.org/
 
@@ -20,22 +20,51 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 ## Installation
 
 ### Windows
-1. Install Python from https://www.python.org/downloads/ — tick **"Add Python to PATH"**
-2. Install ffmpeg and add it to PATH (see https://ffmpeg.org/download.html)
-3. Download the latest release zip and extract it
-4. Double-click **`setup.bat`** to install Python dependencies
-5. Double-click **`launcher.pyw`** to start idGuru
+
+**1. Install Python**
+- Go to https://www.python.org/downloads/
+- Download the **Windows installer (64-bit)** — this is the standalone installer, not the Microsoft Store version
+- Run the installer and tick **"Add Python to PATH"** before clicking Install
+- Verify: open PowerShell and type `python --version`
+
+**2. Install ffmpeg**
+- Open PowerShell and run:
+  ```
+  winget install ffmpeg
+  ```
+- Close and reopen PowerShell, then verify: `ffmpeg -version`
+- If winget isn't available, download ffmpeg from https://www.gyan.dev/ffmpeg/builds/ — grab the **ffmpeg-release-full.zip**, extract it, and add the `bin` folder to your PATH
+
+**3. Install idGuru dependencies**
+- Download the latest release zip and extract it to a folder
+- Double-click **`setup.bat`**
+
+**4. Launch**
+- Double-click **`launcher.pyw`**
+
+---
 
 ### macOS
-1. Install Python from https://www.python.org/downloads/ or via Homebrew: `brew install python`
-2. Install ffmpeg via Homebrew: `brew install ffmpeg`
-3. Download the latest release zip and extract it
-4. Open Terminal, navigate to the idGuru folder and run:
-   ```
-   chmod +x setup.sh
-   ./setup.sh
-   ```
-5. Run `python3 launcher.py` or double-click it in Finder
+
+**1. Install Python**
+- Go to https://www.python.org/downloads/ and download the **macOS installer**
+- Or via Homebrew: `brew install python`
+- Verify: open Terminal and type `python3 --version`
+
+**2. Install ffmpeg**
+- Via Homebrew (recommended): `brew install ffmpeg`
+- Verify: `ffmpeg -version`
+
+**3. Install idGuru dependencies**
+- Download the latest release zip and extract it
+- Open Terminal, navigate to the folder and run:
+  ```
+  chmod +x setup.sh
+  ./setup.sh
+  ```
+
+**4. Launch**
+- Run `python3 launcher.py` or double-click it in Finder
 
 ---
 
@@ -66,12 +95,21 @@ For RAW files, install rawpy: `pip install rawpy`
 
 ---
 
-## Browsing
+## Browsing & Editing
 
 - **Videos tab** — browse all indexed frames, filter by species/country/region/area/site
 - **Photos tab** — browse photos, switch to **By Species** to see grouped results
-- Click any card to open the detail modal — edit species, add location/date, rename files
+- Click any card to open the detail modal — edit species, habitat, behaviours, notes, add location/date, rename files
 - **Ctrl+click** or **Shift+click** to select multiple items for bulk editing
+- Set **ID Confidence** to **Confirmed** to trigger an automatic species information lookup
+
+### Confirming IDs & looking up species info
+When you've identified a species (either correcting Claude or confirming its guess):
+- **Single item** — open the detail modal, set **ID Confidence** to **✅ Confirmed**, and the habitat, behaviours and notes will be automatically filled in
+- **Multiple selected items** — use the **✓ Confirm ID & Lookup** button in the selection bar
+- **Whole clip** — open the clip, use the **✓ Confirm ID & Lookup** button in the clip header
+
+A checkbox picker lets you choose which species to confirm when multiple are tagged.
 
 ---
 
@@ -124,14 +162,18 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 **"rawpy not installed" when scanning RAW files**
 - Run: `pip install rawpy`
 
-**ffmpeg errors on video scan**
-- Make sure ffmpeg is installed and on your PATH
+**ffmpeg not found / video scan errors**
+- Run `winget install ffmpeg` in PowerShell (Windows), or `brew install ffmpeg` (macOS)
+- Close and reopen your terminal after installing, then try again
 
 **VLC not opening at timestamp**
 - Make sure VLC is installed at the default location
 
 **Blank cmd window appears on Windows**
 - Use `launcher.pyw` not `launcher.py` — the `.pyw` extension suppresses the console window
+
+**Videos being skipped with uppercase extensions (.MTS, .MOV etc)**
+- Update to the latest version — this was fixed in v1.0.2
 
 ---
 
