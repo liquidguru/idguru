@@ -285,7 +285,7 @@ def cmd_index(args, conn):
     root = Path(args.path)
     if not root.exists(): console.print(f"[red]Path not found: {root}[/red]"); sys.exit(1)
     indexed = {r[0] for r in conn.execute("SELECT path FROM videos")}
-    videos = sorted({p for ext in VIDEO_EXTS for p in root.rglob(f"*{ext}") if str(p) not in indexed})
+    videos = sorted({p for p in root.rglob("*") if p.suffix.lower() in VIDEO_EXTS and str(p) not in indexed})
     if not videos: console.print("[green]No new videos.[/green]"); return
     console.print(f"\n[cyan]Found {len(videos)} unindexed video(s)[/cyan]\n")
     total = 0
@@ -309,7 +309,7 @@ def cmd_batch(args, conn):
     root = Path(args.path)
     if not root.exists(): console.print(f"[red]Path not found: {root}[/red]"); sys.exit(1)
     indexed = {r[0] for r in conn.execute("SELECT path FROM videos")}
-    videos = sorted({p for ext in VIDEO_EXTS for p in root.rglob(f"*{ext}") if str(p) not in indexed})
+    videos = sorted({p for p in root.rglob("*") if p.suffix.lower() in VIDEO_EXTS and str(p) not in indexed})
     if not videos: console.print("[green]No new videos.[/green]"); return
     run_batch(client,conn,videos,args.workers)
 
@@ -2504,7 +2504,7 @@ async function loadPhotoFolderList() {
             if not root.exists():
                 scan_queue.put({"type":"error","msg":"Path not found: "+path}); return
             indexed = {r[0] for r in conn.execute("SELECT path FROM videos")}
-            videos = sorted({p for ext in VIDEO_EXTS for p in root.rglob("*"+ext) if str(p) not in indexed})
+            videos = sorted({p for p in root.rglob("*") if p.suffix.lower() in VIDEO_EXTS and str(p) not in indexed})
             if not videos:
                 scan_queue.put({"type":"done","msg":"No new videos found.","total":0}); return
             scan_queue.put({"type":"progress","msg":"Found "+str(len(videos))+" new video(s)...","pct":0})
@@ -3061,7 +3061,7 @@ async function loadPhotoFolderList() {
             if not root.exists():
                 photo_queue.put({"type":"error","msg":"Path not found: "+path}); return
             indexed = {r[0] for r in conn.execute("SELECT path FROM photos")}
-            new_photos = sorted({p for ext in PHOTO_EXTS for p in root.rglob("*"+ext) if str(p) not in indexed})
+            new_photos = sorted({p for p in root.rglob("*") if p.suffix.lower() in PHOTO_EXTS and str(p) not in indexed})
             if not new_photos:
                 photo_queue.put({"type":"done","msg":"No new photos found.","total":0}); return
             photo_queue.put({"type":"progress","msg":"Found "+str(len(new_photos))+" new photo(s)...","pct":0})
