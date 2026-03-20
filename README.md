@@ -2,7 +2,7 @@
 
 > Built by [liquidGuru](https://www.liquidguru.com) · Powered by [Claude AI](https://anthropic.com)
 
-idGuru uses Claude AI to automatically identify marine species in your underwater video footage and still photos, building a fully searchable archive of everything you've shot. You can also manually identify, correct, or confirm any species — giving you complete control over your media catalogue.
+idGuru uses Claude AI to automatically identify marine species in your underwater video footage and still photos, building a fully searchable archive of everything you've shot. You can also manually identify, correct, or confirm any species — and once identified, batch rename your actual video and photo files on disk using the species name. Complete control over your media catalogue.
 
 **[⬇️ Download latest release](https://github.com/liquidguru/idguru/releases/latest)** · **[📸 See screenshots](#screenshots)**
 
@@ -216,3 +216,28 @@ Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) �
 ## Credits
 
 Built by [Kaj Maney / liquidGuru](https://www.liquidguru.com) · Powered by [Claude](https://anthropic.com) from Anthropic
+
+---
+
+## Changelog
+
+### v1.2.0
+- **Batch rename video files** — new Select Mode in Clips view lets you select multiple video clips and batch rename the actual files on disk using the primary species name
+- **Batch rename photos** — select multiple photos and batch rename in one go, with optional custom prefix
+- **Sort by ID confidence** — new sort dropdown on Videos and Photos tabs: sort by Uncertain first (find what needs attention) or Confirmed first
+- **Clip-level select mode** — toggle between Browse and Select mode in Clips view; selection bar with Batch Rename, Confirm ID & Lookup, and Mark for Delete
+
+### v1.1.0
+- **Confirm ID & species lookup** — set ID Confidence to Confirmed on any frame or photo to auto-fill habitat, behaviours and notes
+- **Bulk Confirm ID** — works on multi-selected frames/photos and whole clips, with checkbox picker to choose which species to confirm
+- **Editable habitat, behaviours and notes** fields in detail modals
+- **Separate Water Visibility and ID Confidence fields**
+
+### v1.0.2
+- Fixed uppercase video extensions (.MTS, .MOV etc) being skipped on scan
+
+### v1.0.1
+- Fixed video scanning crash on fresh installs
+
+### v1.0.0
+- Initial release
