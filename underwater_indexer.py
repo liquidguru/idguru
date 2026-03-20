@@ -737,6 +737,7 @@ button:hover{opacity:.85}
       <button id="view-frames" class="btn-blue btn-sm" onclick="setView('frames')">Frames</button>
       <button id="view-clips" class="btn-sm" style="background:transparent;color:#475569" onclick="setView('clips')">Clips</button>
     </div>
+    <button id="clips-select-mode-btn" style="display:none;background:#0c3a5e;color:#7dd4fc;border:1px solid #1e3a5f;padding:5px 12px;border-radius:8px;font-size:12px;cursor:pointer" onclick="toggleClipSelectMode()">Select Mode</button>
   </div>
   <div class="sbar" style="margin-top:-8px">
     <select id="sp" onchange="currentPage=1;load()" style="flex:1;min-width:0;max-width:200px;overflow:hidden;text-overflow:ellipsis"><option>All species</option></select>
@@ -744,6 +745,11 @@ button:hover{opacity:.85}
     <select id="region-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All regions</option></select>
     <select id="area-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All areas</option></select>
     <select id="site-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All sites</option></select>
+    <select id="sort-filter" onchange="currentPage=1;load()" style="min-width:0;font-size:12px">
+      <option value="">Sort: Default</option>
+      <option value="confidence_asc">ID: Uncertain first</option>
+      <option value="confidence_desc">ID: Confirmed first</option>
+    </select>
     <span style="color:#475569;font-size:12px;white-space:nowrap" id="rcount"></span>
   </div>
   <div class="grid" id="grid"></div>
@@ -789,6 +795,11 @@ button:hover{opacity:.85}
       <select id="photo-region-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All regions</option></select>
       <select id="photo-area-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All areas</option></select>
       <select id="photo-site-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All sites</option></select>
+      <select id="photo-sort-filter" onchange="photoPage=1;loadPhotos()" style="min-width:0;font-size:12px">
+        <option value="">Sort: Default</option>
+        <option value="confidence_asc">ID: Uncertain first</option>
+        <option value="confidence_desc">ID: Confirmed first</option>
+      </select>
       <span style="color:#475569;font-size:12px;white-space:nowrap" id="photo-rcount"></span>
     </div>
     <div class="grid" id="photo-grid"></div>
@@ -947,8 +958,28 @@ button:hover{opacity:.85}
   <button class="btn-blue btn-sm" onclick="photosBulkSetSpecies()">Set Species</button>
   <button class="btn-slate btn-sm" onclick="photosBulkSetSiteDate()">Set Location/Date</button>
   <button class="btn-purple btn-sm" onclick="openConfirmIDPicker('photos')">&#10003; Confirm ID &amp; Lookup</button>
+  <button class="btn-amber btn-sm" onclick="openBatchRename('photos')">Batch Rename</button>
   <button class="btn-red btn-sm" onclick="photosBulkMarkDelete()">Mark for Delete</button>
   <button class="btn-slate btn-sm" onclick="clearPhotoSelection()">Clear</button>
+</div>
+
+<!-- BATCH RENAME MODAL -->
+<div class="modal" id="batch-rename-modal" onclick="if(event.target===this)closeBatchRename()">
+  <div class="mbox" style="max-width:440px">
+    <div class="mbody">
+      <div class="mtitle" style="margin-bottom:6px">Batch Rename Files</div>
+      <p style="color:#475569;font-size:12px;margin-bottom:14px">Files will be renamed using the primary species name (first tag) followed by a number. Preview shown below.</p>
+      <div class="lbl" style="margin-top:0">Custom prefix (optional)</div>
+      <input id="batch-rename-prefix" placeholder="Leave blank to use species name" style="width:100%;font-size:13px;margin-top:6px;margin-bottom:10px" oninput="updateBatchRenamePreview()">
+      <div class="lbl">Preview</div>
+      <div id="batch-rename-preview" class="preview-box" style="margin-top:6px;margin-bottom:14px"></div>
+      <div id="batch-rename-progress" style="font-size:12px;color:#f59e0b;margin-bottom:10px;display:none"></div>
+      <div class="mactions">
+        <button class="btn-amber" onclick="executeBatchRename()">Rename Files</button>
+        <button class="btn-slate" onclick="closeBatchRename()">Cancel</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- CONFIRM ID SPECIES PICKER MODAL -->
@@ -965,6 +996,15 @@ button:hover{opacity:.85}
       </div>
     </div>
   </div>
+</div>
+
+<!-- CLIPS MULTISELECT BAR -->
+<div class="sel-bar" id="clips-sel-bar" style="display:none">
+  <span id="clips-sel-count">0 selected</span>
+  <button class="btn-amber btn-sm" onclick="batchRenameSelectedClips()">Batch Rename</button>
+  <button class="btn-purple btn-sm" onclick="confirmIDSelectedClips()">&#10003; Confirm ID &amp; Lookup</button>
+  <button class="btn-red btn-sm" onclick="deleteSelectedClips()">Mark for Delete</button>
+  <button class="btn-slate btn-sm" onclick="clearClipSelection()">Clear</button>
 </div>
 
 <!-- BULK SPECIES MODAL -->
@@ -1039,6 +1079,7 @@ button:hover{opacity:.85}
       <div style="display:flex;gap:6px">
         <button class="btn-blue btn-sm" id="clip-set-species-btn">Set Species for all</button>
         <button class="btn-purple btn-sm" id="clip-confirm-id-btn">&#10003; Confirm ID &amp; Lookup</button>
+        <button class="btn-amber btn-sm" id="clip-batch-rename-btn">Batch Rename</button>
         <button class="btn-red btn-sm" id="clip-delete-btn">Mark all for Delete</button>
       </div>
     </div>
@@ -1262,6 +1303,7 @@ button:hover{opacity:.85}
 <script>
 var current = null, scanES = null, selected = {}, lastClickedFid = null;
 var allSpecies = [], allSites = [], allCountries = [], allRegions = [], allAreas = [];
+var clipSelectMode = false, selectedClips = {}, lastClickedVid = null;
 var NONE = String.fromCharCode(110,111,110,101);
 var currentView = 'frames';
 var currentPage = 1;
@@ -1272,12 +1314,20 @@ var selectedPhotos = {}, lastClickedPid = null;
 
 function setView(v) {
   currentView = v; currentPage = 1;
+  clipSelectMode = false;
+  selectedClips = {};
+  document.getElementById('clips-sel-bar').style.display = NONE;
   document.getElementById('view-frames').className = v==='frames' ? 'btn-blue btn-sm' : 'btn-sm';
   document.getElementById('view-frames').style.background = v==='frames' ? '' : 'transparent';
   document.getElementById('view-frames').style.color = v==='frames' ? '' : '#475569';
   document.getElementById('view-clips').className = v==='clips' ? 'btn-blue btn-sm' : 'btn-sm';
   document.getElementById('view-clips').style.background = v==='clips' ? '' : 'transparent';
   document.getElementById('view-clips').style.color = v==='clips' ? '' : '#475569';
+  var selBtn = document.getElementById('clips-select-mode-btn');
+  selBtn.style.display = v==='clips' ? '' : NONE;
+  selBtn.textContent = 'Select Mode';
+  selBtn.style.background = '#0c3a5e';
+  selBtn.style.color = '#7dd4fc';
   load();
 }
 
@@ -1298,6 +1348,7 @@ async function load() {
   var country = document.getElementById('country-filter').value;
   var region = document.getElementById('region-filter').value;
   var area = document.getElementById('area-filter').value;
+  var sort = document.getElementById('sort-filter').value;
   var p = new URLSearchParams();
   if (q) p.set('q', q);
   if (sp && sp !== 'All species') p.set('species', sp);
@@ -1305,6 +1356,7 @@ async function load() {
   if (country && country !== 'All countries') p.set('country', country);
   if (region && region !== 'All regions') p.set('region', region);
   if (area && area !== 'All areas') p.set('area', area);
+  if (sort) p.set('sort', sort);
 
   if (currentView === 'clips') {
     p.set('page', currentPage); p.set('page_size', PAGE_SIZE);
@@ -1315,27 +1367,39 @@ async function load() {
     document.getElementById('rcount').textContent = total + ' clips';
     renderPagination(totalPages, total, 'clips');
     var html = '';
+    window._clips = {};
     data.forEach(function(c) {
-      var cls = 'card' + (c.marked_delete ? ' marked-delete' : '');
+      window._clips[c.vid_id] = c;
+      var isSelected = !!selectedClips[c.vid_id];
+      var cls = 'card' + (c.marked_delete ? ' marked-delete' : '') + (isSelected ? ' selected' : '');
       var tags = c.species.slice(0,3).map(function(s){ return '<span class="tag">'+s+'</span>'; }).join('');
       var dur = Math.floor((c.duration||0)/60)+':'+(''+(Math.floor((c.duration||0)%60))).padStart(2,'0');
       html += '<div class="'+cls+'" data-vid="'+c.vid_id+'" data-filename="'+c.filename.replace(/"/g,'&quot;')+'">';
       html += '<div style="position:relative">';
       html += '<img src="/thumb/'+c.thumb_id+'" onerror="this.style.display=String.fromCharCode(110,111,110,101)">';
       html += '<span style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,.7);color:#94a3b8;font-size:10px;padding:2px 5px;border-radius:4px">'+c.frame_count+' frames &middot; '+dur+'</span>';
+      if (clipSelectMode) html += '<span style="position:absolute;top:6px;left:6px;background:'+(isSelected?'#f59e0b':'rgba(0,0,0,.5)')+';border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:12px">'+(isSelected?'&#10003;':'')+'</span>';
       html += '</div>';
       html += '<div class="ci"><div class="fname">'+c.filename+'</div>';
       html += '<div class="tags">'+tags+'</div>';
       html += '<div class="bot"><span class="hab">'+(c.area||c.dive_site||'')+'</span><span class="vis-'+(c.visibility||'')+'">'+(c.visibility||'')+'</span></div>';
-      html += '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">';
-      html += '<button class="btn-green btn-sm" style="font-size:10px;padding:3px 7px" data-path="'+c.path+'" onclick="event.stopPropagation();playClip(this.dataset.path)">Play in VLC</button>';
-      html += '<button class="'+(c.marked_delete?'btn-amber':'btn-red')+' btn-sm" style="font-size:10px;padding:3px 7px" data-vid="'+c.vid_id+'" data-marked="'+(c.marked_delete?'1':'0')+'" onclick="event.stopPropagation();clipMarkDelete(this.dataset.vid, this.dataset.marked, this)">'+( c.marked_delete ? 'Unmark Delete' : 'Mark for Delete')+'</button>';
-      html += '</div>';
+      if (!clipSelectMode) {
+        html += '<div style="display:flex;gap:4px;margin-top:6px;flex-wrap:wrap">';
+        html += '<button class="btn-green btn-sm" style="font-size:10px;padding:3px 7px" data-path="'+c.path+'" onclick="event.stopPropagation();playClip(this.dataset.path)">Play in VLC</button>';
+        html += '<button class="'+(c.marked_delete?'btn-amber':'btn-red')+' btn-sm" style="font-size:10px;padding:3px 7px" data-vid="'+c.vid_id+'" data-marked="'+(c.marked_delete?'1':'0')+'" onclick="event.stopPropagation();clipMarkDelete(this.dataset.vid, this.dataset.marked, this)">'+( c.marked_delete ? 'Unmark Delete' : 'Mark for Delete')+'</button>';
+        html += '</div>';
+      }
       html += '</div></div>';
     });
     document.getElementById('grid').innerHTML = html;
     document.getElementById('grid').querySelectorAll('.card[data-vid]').forEach(function(el) {
-      el.addEventListener('click', function() { showClipFrames(el.dataset.vid, el.dataset.filename); });
+      el.addEventListener('click', function(e) {
+        if (clipSelectMode) {
+          clipCardSelect(el.dataset.vid, el.dataset.filename);
+        } else {
+          showClipFrames(el.dataset.vid, el.dataset.filename);
+        }
+      });
     });
     document.getElementById('marked-count').textContent = data.filter(function(c){return c.marked_delete;}).length;
     document.getElementById('btn-purge').style.display = data.filter(function(c){return c.marked_delete;}).length > 0 ? '' : NONE;
@@ -1394,11 +1458,22 @@ async function showClipFrames(vidId, filename) {
   document.getElementById('clip-frames-inner').innerHTML = html;
   document.getElementById('clip-frames-modal').classList.add('show');
   document.getElementById('clip-frames-mbox').scrollTop = 0;
+  // Replace buttons to remove any previously attached listeners
+  ['clip-set-species-btn','clip-confirm-id-btn','clip-batch-rename-btn','clip-delete-btn'].forEach(function(id){
+    var old = document.getElementById(id);
+    var fresh = old.cloneNode(true);
+    old.parentNode.replaceChild(fresh, old);
+  });
   document.getElementById('clip-set-species-btn').addEventListener('click', function(){ clipBulkSpecies(vidId); });
   document.getElementById('clip-confirm-id-btn').addEventListener('click', function(){
     var frameIds = Object.keys(window._frames);
     document.getElementById('clip-frames-modal').classList.remove('show');
     openConfirmIDPickerForClip(frameIds);
+  });
+  document.getElementById('clip-batch-rename-btn').addEventListener('click', function(){
+    document.getElementById('clip-frames-modal').classList.remove('show');
+    var firstFrame = window._frames[Object.keys(window._frames)[0]];
+    if (firstFrame) openBatchRename('clips', [{id: vidId, path: firstFrame.path, species: firstFrame.species, filename: firstFrame.filename}]);
   });
   document.getElementById('clip-delete-btn').addEventListener('click', function(){ clipBulkDelete(vidId); });
   document.getElementById('clip-frames-inner').querySelectorAll('.card').forEach(function(el) {
@@ -1513,6 +1588,88 @@ function updateSelBar() {
 }
 
 function clearSelection() { selected = {}; lastClickedFid = null; load(); }
+
+// ── Clip Select Mode ──────────────────────────────────────────────────────────
+
+function toggleClipSelectMode() {
+  clipSelectMode = !clipSelectMode;
+  selectedClips = {};
+  var btn = document.getElementById('clips-select-mode-btn');
+  if (clipSelectMode) {
+    btn.textContent = 'Exit Select Mode';
+    btn.style.background = '#f59e0b';
+    btn.style.color = '#000';
+  } else {
+    btn.textContent = 'Select Mode';
+    btn.style.background = '#0c3a5e';
+    btn.style.color = '#7dd4fc';
+    document.getElementById('clips-sel-bar').style.display = NONE;
+  }
+  load();
+}
+
+function clipCardSelect(vid, filename) {
+  if (selectedClips[vid]) {
+    delete selectedClips[vid];
+  } else {
+    selectedClips[vid] = { vid_id: vid, filename: filename,
+      path: window._clips[vid] ? window._clips[vid].path : '',
+      species: window._clips[vid] ? window._clips[vid].species : [] };
+  }
+  updateClipsSelBar();
+  // Update card appearance
+  var el = document.querySelector('[data-vid="'+vid+'"]');
+  if (el) {
+    el.classList.toggle('selected', !!selectedClips[vid]);
+    var dot = el.querySelector('span[style*="position:absolute;top:6px"]');
+    if (dot) {
+      dot.style.background = selectedClips[vid] ? '#f59e0b' : 'rgba(0,0,0,.5)';
+      dot.innerHTML = selectedClips[vid] ? '&#10003;' : '';
+    }
+  }
+}
+
+function updateClipsSelBar() {
+  var n = Object.keys(selectedClips).length;
+  document.getElementById('clips-sel-bar').style.display = n > 0 ? 'flex' : NONE;
+  document.getElementById('clips-sel-count').textContent = n + ' clip' + (n !== 1 ? 's' : '') + ' selected';
+}
+
+function clearClipSelection() {
+  selectedClips = {}; updateClipsSelBar(); load();
+}
+
+function batchRenameSelectedClips() {
+  var items = Object.values(selectedClips);
+  if (!items.length) return;
+  openBatchRename('clips', items);
+}
+
+function confirmIDSelectedClips() {
+  var items = Object.values(selectedClips);
+  if (!items.length) return;
+  // Collect all species across selected clips
+  var allSp = {};
+  items.forEach(function(c){ (c.species||[]).forEach(function(s){ allSp[s]=true; }); });
+  _confirmIDTarget = 'clips';
+  _confirmIDClipIds = items.map(function(c){ return c.vid_id; });
+  showConfirmIDModal(Object.keys(allSp));
+}
+
+async function deleteSelectedClips() {
+  var items = Object.values(selectedClips);
+  if (!items.length) return;
+  if (!confirm('Mark ' + items.length + ' clip(s) for deletion?')) return;
+  for (var i = 0; i < items.length; i++) {
+    var frames = await (await fetch('/api/frames?vid_id='+encodeURIComponent(items[i].vid_id))).json();
+    if (frames.length) {
+      var ids = frames.map(function(f){ return f.id; });
+      await fetch('/api/bulk_update', {method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ids: ids, update: {marked_delete: 1}})});
+    }
+  }
+  clearClipSelection();
+}
 
 async function bulkUpdate(payload) {
   var ids = Object.keys(selected);
@@ -2170,6 +2327,7 @@ async function loadPhotos() {
   var region = document.getElementById('photo-region-filter').value;
   var area = document.getElementById('photo-area-filter').value;
   var site = document.getElementById('photo-site-filter').value;
+  var sort = document.getElementById('photo-sort-filter').value;
   var p = new URLSearchParams();
   if (q) p.set('q', q);
   if (sp && sp !== 'All species') p.set('species', sp);
@@ -2177,6 +2335,7 @@ async function loadPhotos() {
   if (region && region !== 'All regions') p.set('region', region);
   if (area && area !== 'All areas') p.set('area', area);
   if (site && site !== 'All sites') p.set('site', site);
+  if (sort) p.set('sort', sort);
   p.set('page', photoPage); p.set('page_size', PAGE_SIZE);
   var r = await fetch('/api/photos?' + p);
   var resp = await r.json();
@@ -2576,7 +2735,79 @@ async function photosBulkUpdate(payload) {
 function photosBulkReviewed() { photosBulkUpdate({reviewed:1}); }
 function photosBulkMarkDelete() { photosBulkUpdate({marked_delete:1}); }
 
-// ── Confirm ID & Lookup ───────────────────────────────────────────────────────
+// ── Batch Rename ──────────────────────────────────────────────────────────────
+
+var _batchRenameItems = [];
+var _batchRenameType = '';
+
+function openBatchRename(type, items) {
+  _batchRenameType = type;
+  if (type === 'photos') {
+    var ids = Object.keys(selectedPhotos);
+    _batchRenameItems = ids.map(function(id){ return window._photos[id]; }).filter(Boolean);
+  } else {
+    // clips — items passed directly
+    _batchRenameItems = items || [];
+  }
+  if (!_batchRenameItems.length) { alert('No items selected.'); return; }
+  document.getElementById('batch-rename-prefix').value = '';
+  document.getElementById('batch-rename-progress').style.display = 'none';
+  updateBatchRenamePreview();
+  document.getElementById('batch-rename-modal').classList.add('show');
+}
+
+function closeBatchRename() {
+  document.getElementById('batch-rename-modal').classList.remove('show');
+}
+
+function updateBatchRenamePreview() {
+  var prefix = document.getElementById('batch-rename-prefix').value.trim();
+  var preview = document.getElementById('batch-rename-preview');
+  var lines = _batchRenameItems.slice(0, 5).map(function(item, i) {
+    var base = prefix || (item.species && item.species[0]) || item.filename;
+    var ext = item.filename.split('.').pop();
+    var num = String(i + 1).padStart(3, '0');
+    var newName = base.replace(/[^a-zA-Z0-9 .,() -]/g, '_') + '_' + num + '.' + ext;
+    return '<div class="preview-item"><span style="color:#475569">' + item.filename + '</span> → <span style="color:#7dd4fc">' + newName + '</span></div>';
+  }).join('');
+  if (_batchRenameItems.length > 5) lines += '<div style="color:#334155;font-size:11px;margin-top:4px">...and ' + (_batchRenameItems.length - 5) + ' more</div>';
+  preview.innerHTML = lines || '<div style="color:#475569">No items to rename</div>';
+  preview.style.display = 'block';
+}
+
+async function executeBatchRename() {
+  var prefix = document.getElementById('batch-rename-prefix').value.trim();
+  var progress = document.getElementById('batch-rename-progress');
+  progress.style.display = 'block';
+  progress.style.color = '#f59e0b';
+  progress.textContent = 'Renaming ' + _batchRenameItems.length + ' file(s)...';
+  var endpoint = _batchRenameType === 'photos' ? '/api/rename_photo' : '/api/rename_file';
+  var errors = 0;
+  for (var i = 0; i < _batchRenameItems.length; i++) {
+    var item = _batchRenameItems[i];
+    var base = prefix || (item.species && item.species[0]) || item.filename.split('.').slice(0,-1).join('.');
+    var ext = item.filename.split('.').pop();
+    var num = String(i + 1).padStart(3, '0');
+    var newName = base.replace(/[^a-zA-Z0-9 .,() -]/g, '_') + '_' + num + '.' + ext;
+    var idField = _batchRenameType === 'photos' ? 'id' : 'id';
+    var r = await fetch(endpoint, {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: item.id || item.vid_id, path: item.path, new_name: newName})});
+    var d = await r.json();
+    if (!d.ok) errors++;
+  }
+  if (errors === 0) {
+    progress.style.color = '#22c55e';
+    progress.textContent = 'Done! ' + _batchRenameItems.length + ' file(s) renamed.';
+  } else {
+    progress.style.color = '#f59e0b';
+    progress.textContent = (_batchRenameItems.length - errors) + ' renamed, ' + errors + ' failed.';
+  }
+  setTimeout(function(){
+    closeBatchRename();
+    if (_batchRenameType === 'photos') { clearPhotoSelection(); }
+    else { clearClipSelection(); }
+  }, 1500);
+}
 
 var _confirmIDTarget = null; // 'frames', 'photos', or 'clip'
 var _confirmIDClipIds = null;
@@ -2849,8 +3080,17 @@ async function loadPhotoFolderList() {
         total = db.execute(count_sql, params).fetchone()[0]
         page = int(request.args.get("page", 1))
         page_size = int(request.args.get("page_size", 100))
+        sort = request.args.get("sort","")
         offset = (page-1)*page_size
-        sql += " GROUP BY v.id ORDER BY v.filename LIMIT ? OFFSET ?"
+        # Sort clips by min id_confidence of their frames
+        confidence_order = "CASE MIN(COALESCE(f.id_confidence,'')) WHEN 'confirmed' THEN 2 WHEN 'probable' THEN 1 WHEN 'uncertain' THEN 0 ELSE -1 END"
+        if sort == "confidence_desc":
+            order = confidence_order + " DESC, v.filename"
+        elif sort == "confidence_asc":
+            order = confidence_order + " ASC, v.filename"
+        else:
+            order = "v.filename"
+        sql += " GROUP BY v.id ORDER BY "+order+" LIMIT ? OFFSET ?"
         rows = db.execute(sql, params+[page_size, offset]).fetchall()
         result = []
         for r in rows:
@@ -2879,6 +3119,7 @@ async function loadPhotoFolderList() {
         region = request.args.get("region","")
         area = request.args.get("area","")
         vid_id = request.args.get("vid_id","")
+        sort = request.args.get("sort","")
         page = int(request.args.get("page", 1))
         page_size = int(request.args.get("page_size", 100))
         offset = (page-1)*page_size
@@ -2899,11 +3140,20 @@ async function loadPhotoFolderList() {
 
         total = db.execute("SELECT COUNT(*) "+base, params).fetchone()[0]
 
+        # Build ORDER BY
+        confidence_order = "CASE COALESCE(f.id_confidence,'') WHEN 'confirmed' THEN 2 WHEN 'probable' THEN 1 WHEN 'uncertain' THEN 0 ELSE -1 END"
+        if sort == "confidence_desc":
+            order = confidence_order + " DESC, v.filename, f.timestamp"
+        elif sort == "confidence_asc":
+            order = confidence_order + " ASC, v.filename, f.timestamp"
+        else:
+            order = "v.filename, f.timestamp"
+
         sql = ("SELECT f.id, v.filename, v.path, f.timestamp, f.species, f.habitat, "
                "f.visibility, f.notes, f.behaviours, COALESCE(f.reviewed,0), COALESCE(f.marked_delete,0), "
                "COALESCE(v.dive_site,''), COALESCE(v.dive_date,''), COALESCE(v.country,''), "
                "COALESCE(v.region,''), COALESCE(v.area,''), COALESCE(f.id_confidence,'') "
-               +base+" ORDER BY v.filename, f.timestamp LIMIT ? OFFSET ?")
+               +base+" ORDER BY "+order+" LIMIT ? OFFSET ?")
         rows = db.execute(sql, params+[page_size, offset]).fetchall()
         items = [{"id":r[0],"filename":r[1],"path":r[2],"timestamp":r[3],
             "species":json.loads(r[4] or "[]"),"habitat":r[5],"visibility":r[6],
@@ -3142,6 +3392,7 @@ async function loadPhotoFolderList() {
         country = request.args.get("country","")
         region = request.args.get("region","")
         area = request.args.get("area","")
+        sort = request.args.get("sort","")
         page = int(request.args.get("page",1))
         page_size = int(request.args.get("page_size",100))
         offset = (page-1)*page_size
@@ -3156,11 +3407,18 @@ async function loadPhotoFolderList() {
         if region: base += " AND region=?"; params.append(region)
         if area: base += " AND area=?"; params.append(area)
         total = db.execute("SELECT COUNT(*) "+base, params).fetchone()[0]
+        confidence_order = "CASE COALESCE(id_confidence,'') WHEN 'confirmed' THEN 2 WHEN 'probable' THEN 1 WHEN 'uncertain' THEN 0 ELSE -1 END"
+        if sort == "confidence_desc":
+            order = confidence_order + " DESC, filename"
+        elif sort == "confidence_asc":
+            order = confidence_order + " ASC, filename"
+        else:
+            order = "filename"
         rows = db.execute("SELECT id,path,filename,filesize,species,habitat,visibility,behaviours,notes,"
                           "COALESCE(reviewed,0),COALESCE(marked_delete,0),"
                           "COALESCE(dive_site,''),COALESCE(dive_date,''),COALESCE(country,''),"
                           "COALESCE(region,''),COALESCE(area,''),COALESCE(id_confidence,'') "+base
-                          +" ORDER BY filename LIMIT ? OFFSET ?", params+[page_size,offset]).fetchall()
+                          +" ORDER BY "+order+" LIMIT ? OFFSET ?", params+[page_size,offset]).fetchall()
         items = [{"id":r[0],"path":r[1],"filename":r[2],"filesize":r[3],
                   "species":json.loads(r[4] or "[]"),"habitat":r[5],"visibility":r[6],
                   "behaviours":json.loads(r[7] or "[]"),"notes":r[8],
