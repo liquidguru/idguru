@@ -10,7 +10,8 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 
 ## Requirements
 
-- **Python 3.10 or later** — https://www.python.org/downloads/
+- **Python 3.11 or 3.12** (recommended) — https://www.python.org/downloads/  
+  Python 3.13 and 3.14 are not yet supported due to missing pre-built wheels for pydantic-core
 - **ffmpeg** (for video indexing) — installed via winget (see below)
 - **An Anthropic API key** — https://console.anthropic.com
 - **VLC** (optional, for opening video at timestamps) — https://www.videolan.org/
@@ -23,7 +24,7 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 
 **1. Install Python**
 - Go to https://www.python.org/downloads/
-- Download the **Windows installer (64-bit)** — this is the standalone installer, not the Microsoft Store version
+- Download the **Windows installer (64-bit)** for Python **3.12** — this is the standalone installer, not the Microsoft Store version
 - Run the installer and tick **"Add Python to PATH"** before clicking Install
 - Verify: open PowerShell and type `python --version`
 
@@ -47,8 +48,8 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 ### macOS
 
 **1. Install Python**
-- Go to https://www.python.org/downloads/ and download the **macOS installer**
-- Or via Homebrew: `brew install python`
+- Go to https://www.python.org/downloads/ and download the **macOS installer** for Python **3.12**
+- Or via Homebrew: `brew install python@3.12`
 - Verify: open Terminal and type `python3 --version`
 
 **2. Install ffmpeg**
@@ -64,7 +65,7 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
   ```
 
 **4. Launch**
-- Run `python3 launcher.py` or double-click it in Finder
+- Run `python3 launcher.pyw` or double-click it in Finder
 
 ---
 
@@ -158,6 +159,11 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 
 **"No API key" / nothing gets indexed**
 - Open Settings (⚙️) and enter your Anthropic API key from [console.anthropic.com](https://console.anthropic.com)
+
+**`SystemError: pydantic-core version incompatible`**
+- You are likely running Python 3.13 or 3.14 — these are not yet supported
+- Switch to Python 3.12: install it from https://www.python.org/downloads/ then run `py -3.12 setup.bat` (Windows) or `python3.12 setup.sh` (macOS)
+- Or pin pydantic manually: `pip install "pydantic>=2.10.0,<2.13.0" "pydantic-core>=2.41.0,<2.42.0"`
 
 **"rawpy not installed" when scanning RAW files**
 - Run: `pip install rawpy`
