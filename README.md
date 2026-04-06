@@ -90,7 +90,7 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 For large collections, tick **Batch mode** — it costs 50% less and runs asynchronously overnight. Results appear when the batch completes.
 
 ### Photos
-Same process under the **Scan Photos** section. Supports JPG/JPEG and RAW files (CR2, NEF, ARW, DNG, ORF, RAF, RW2, PEF, SRW).
+Same process under the **Scan Photos** section. Supports JPG/JPEG, TIFF, and RAW files (CR2, NEF, ARW, DNG, ORF, RAF, RW2, PEF, SRW).
 
 For RAW files, install rawpy: `pip install rawpy`
 
@@ -178,6 +178,10 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 **Blank cmd window appears on Windows**
 - Use `launcher.pyw` not `launcher.py` — the `.pyw` extension suppresses the console window
 
+**Photos not scanning when using a mapped network drive (e.g. V:\)**
+- Use the full UNC path instead: `\\servername\share\folder`
+- Or update to v1.2.3 which resolves mapped drive letters automatically
+
 ---
 
 ## Screenshots
@@ -227,12 +231,15 @@ Built by [Kaj Maney / liquidGuru](https://www.liquidguru.com) · Powered by [Cla
 
 ## Changelog
 
+### v1.2.3
+- Added TIFF (.tif, .tiff) support for photo scanning
+
 ### v1.2.1
-- Fixed photo scanning crash (sqlite column mismatch for id_confidence)
-- Fixed Browse dialog not working for mapped network drives (V:\ etc)
-  when launched via launcher.pyw
-- Fixed RAW file decode hanging indefinitely — now times out after 60s
-  and skips to the next file
+- Fixed photo scanning crash — `id_confidence` column was missing from both photo insert statements causing a sqlite3 error
+- Fixed Browse dialog not working for mapped network drives (V:\ etc) when launched via launcher.pyw — drive letters are now automatically resolved to UNC paths
+- Fixed RAW file decode hanging indefinitely — now times out after 60 seconds and skips to the next file
+- Python version requirement updated to 3.11/3.12 — Python 3.13/3.14 not yet supported (pydantic-core wheels unavailable)
+- setup.bat and setup.sh now check Python version and exit with a clear message if 3.13+ is detected
 
 ### v1.2.0
 - **Batch rename video files** — new Select Mode in Clips view lets you select multiple video clips and batch rename the actual files on disk using the primary species name
