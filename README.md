@@ -227,6 +227,13 @@ Built by [Kaj Maney / liquidGuru](https://www.liquidguru.com) · Powered by [Cla
 
 ## Changelog
 
+### v1.2.1
+- Fixed photo scanning crash (sqlite column mismatch for id_confidence)
+- Fixed Browse dialog not working for mapped network drives (V:\ etc)
+  when launched via launcher.pyw
+- Fixed RAW file decode hanging indefinitely — now times out after 60s
+  and skips to the next file
+
 ### v1.2.0
 - **Batch rename video files** — new Select Mode in Clips view lets you select multiple video clips and batch rename the actual files on disk using the primary species name
 - **Batch rename photos** — select multiple photos and batch rename in one go, with optional custom prefix
