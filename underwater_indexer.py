@@ -382,8 +382,16 @@ def resize_photo_for_thumb(src_path, out_path):
         if ext in {'.cr2','.nef','.arw','.dng','.orf','.raf','.rw2','.pef','.srw'}:
             try:
                 import rawpy
-                with rawpy.imread(str(src_path)) as raw:
-                    rgb = raw.postprocess(use_camera_wb=True, output_bps=8)
+                def _decode_raw():
+                    with rawpy.imread(str(src_path)) as raw:
+                        return raw.postprocess(use_camera_wb=True, output_bps=8)
+                with ThreadPoolExecutor(max_workers=1) as ex:
+                    fut = ex.submit(_decode_raw)
+                    try:
+                        rgb = fut.result(timeout=60)
+                    except Exception:
+                        console.print(f"[yellow]  Timed out decoding {src_path.name} — skipping[/yellow]")
+                        return False
                 img = Image.fromarray(rgb)
             except ImportError:
                 console.print(f"[yellow]  rawpy not installed — skipping RAW {src_path.name}. Run: pip install rawpy[/yellow]")
@@ -2992,8 +3000,6 @@ async function loadPhotoFolderList() {
         workers = data.get("workers", DEFAULT_WORKERS)
         batch_mode = data.get("batch", False)
         region = data.get("region") or None
-        # Resolve mapped drive letters to UNC paths (mapped drives may not be
-        # visible to subprocesses launched outside the user's full session)
         if len(path) >= 2 and path[1] == ':':
             try:
                 _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
@@ -3640,8 +3646,6 @@ async function loadPhotoFolderList() {
         workers = data.get("workers", DEFAULT_WORKERS)
         batch_mode = data.get("batch", False)
         region = data.get("region") or None
-        # Resolve mapped drive letters to UNC paths (mapped drives may not be
-        # visible to subprocesses launched outside the user's full session)
         if len(path) >= 2 and path[1] == ':':
             try:
                 _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
