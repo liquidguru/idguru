@@ -415,13 +415,13 @@ def index_photo(client, conn, path, region=None):
         out.unlink(missing_ok=True)
         return 0
     conn.execute(
-        "INSERT OR REPLACE INTO photos VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?,?)",
+        "INSERT OR REPLACE INTO photos VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?,?,?)",
         (photo_id, str(path), path.name, path.stat().st_size,
          datetime.now().isoformat(), str(out),
          json.dumps(normalise_species(result.get("species", []))),
          result.get("habitat", ""), result.get("visibility", ""),
          json.dumps(result.get("behaviours", [])), result.get("notes", ""),
-         '', '', '', '', ''))
+         '', '', '', '', '', ''))
     conn.commit()
     return 1
 
@@ -475,13 +475,13 @@ def run_photo_batch(client, conn, photos, progress_cb=None, region=None):
             analysis = json.loads(txt)
         except: continue
         conn.execute(
-            "INSERT OR REPLACE INTO photos VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO photos VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,?,?,?)",
             (result.custom_id, item["path"], item["filename"], item["filesize"],
              datetime.now().isoformat(), item["thumb"],
              json.dumps(normalise_species(analysis.get("species", []))),
              analysis.get("habitat", ""), analysis.get("visibility", ""),
              json.dumps(analysis.get("behaviours", [])), analysis.get("notes", ""),
-             '', '', '', '', ''))
+             '', '', '', '', '', ''))
         saved += 1
     conn.commit()
     console.print(f"[green bold]Saved {saved} photos.[/green bold]")
@@ -2992,6 +2992,16 @@ async function loadPhotoFolderList() {
         workers = data.get("workers", DEFAULT_WORKERS)
         batch_mode = data.get("batch", False)
         region = data.get("region") or None
+        # Resolve mapped drive letters to UNC paths (mapped drives may not be
+        # visible to subprocesses launched outside the user's full session)
+        if len(path) >= 2 and path[1] == ':':
+            try:
+                _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
+                                    text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                for _line in _r.stdout.splitlines():
+                    if 'Remote name' in _line or 'Remotename' in _line:
+                        path = _line.split()[-1] + path[2:]; break
+            except: pass
         def run():
             stop_flag.clear()
             if not get_ai_client():
@@ -3630,6 +3640,16 @@ async function loadPhotoFolderList() {
         workers = data.get("workers", DEFAULT_WORKERS)
         batch_mode = data.get("batch", False)
         region = data.get("region") or None
+        # Resolve mapped drive letters to UNC paths (mapped drives may not be
+        # visible to subprocesses launched outside the user's full session)
+        if len(path) >= 2 and path[1] == ':':
+            try:
+                _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
+                                    text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                for _line in _r.stdout.splitlines():
+                    if 'Remote name' in _line or 'Remotename' in _line:
+                        path = _line.split()[-1] + path[2:]; break
+            except: pass
         def run():
             photo_stop_flag.clear()
             if not get_ai_client():
