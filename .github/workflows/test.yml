@@ -1,0 +1,95 @@
+name: Test idGuru
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check syntax
+        run: python -m py_compile underwater_indexer.py
+
+      - name: Test imports and startup
+        run: |
+          python -c "
+          import sys, os
+          os.environ['ANTHROPIC_API_KEY'] = 'sk-ant-test-key'
+          import underwater_indexer
+          print('Imports OK')
+          conn = underwater_indexer.init_db()
+          print('DB init OK')
+          conn.close()
+          "
+        timeout-minutes: 2
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check syntax
+        run: python3 -m py_compile underwater_indexer.py
+
+      - name: Test imports and startup
+        run: |
+          python3 -c "
+          import sys, os
+          os.environ['ANTHROPIC_API_KEY'] = 'sk-ant-test-key'
+          import underwater_indexer
+          print('Imports OK')
+          conn = underwater_indexer.init_db()
+          print('DB init OK')
+          conn.close()
+          "
+        timeout-minutes: 2
+
+  test-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check syntax
+        run: python3 -m py_compile underwater_indexer.py
+
+      - name: Test imports and startup
+        run: |
+          python3 -c "
+          import sys, os
+          os.environ['ANTHROPIC_API_KEY'] = 'sk-ant-test-key'
+          import underwater_indexer
+          print('Imports OK')
+          conn = underwater_indexer.init_db()
+          print('DB init OK')
+          conn.close()
+          "
+        timeout-minutes: 2
