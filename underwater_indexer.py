@@ -3790,8 +3790,8 @@ async function loadPhotoFolderList() {
         p = FRAMES_DIR / f"{frame_id}.jpg"
         return send_file(p) if p.exists() else ("",404)
 
-    if not headless: webbrowser.open("http://localhost:5000")
-    app.run(debug=False, port=5000)
+    if not headless: webbrowser.open("http://localhost:5001")
+    app.run(debug=False, port=5001)
 
 
 def main():
