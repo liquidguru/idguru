@@ -71,7 +71,7 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 
 ## First Run
 
-1. Launch idGuru — it opens in your browser at `http://localhost:5000`
+1. Launch idGuru — it opens in your browser at `http://localhost:5001`
 2. Click the **⚙️ gear icon** (top right) to open Settings
 3. Enter your **Anthropic API key** (get one at [console.anthropic.com](https://console.anthropic.com)) and set your **default region**
 4. Click **Save**
@@ -182,6 +182,16 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 - Use the full UNC path instead: `\\servername\share\folder`
 - Or update to v1.2.3 which resolves mapped drive letters automatically
 
+**macOS: idGuru won't start / browser can't connect (port conflict)**
+- macOS Monterey and later uses port 5000 for AirPlay Receiver, which conflicts with older versions of idGuru
+- Update to v1.2.5 or later — idGuru now uses port 5001 to avoid this conflict
+- If you're on an older version, you can also disable AirPlay Receiver: **System Settings → General → AirDrop & Handoff → turn off AirPlay Receiver**
+
+**macOS: launcher shows "Failed — see log"**
+- Make sure you have run `./setup.sh` first to install dependencies
+- Try running from Terminal instead: `python3 underwater_indexer.py viewer_headless`
+- The log box in the launcher window shows the full error message to help diagnose the problem
+
 ---
 
 ## Screenshots
@@ -230,6 +240,15 @@ Built by [Kaj Maney / liquidGuru](https://www.liquidguru.com) · Powered by [Cla
 ---
 
 ## Changelog
+
+### v1.2.5
+- Changed port from 5000 to 5001 to avoid conflict with macOS AirPlay Receiver
+
+### v1.2.4
+- Fixed Mac compatibility — replaced Windows-only CREATE_NO_WINDOW with cross-platform POPEN_FLAGS
+- Added idGuru logo and favicon to the web interface
+- Updated launcher to show full error output for easier debugging
+- Added automated cross-platform testing via GitHub Actions (Windows, macOS, Linux)
 
 ### v1.2.3
 - Added TIFF (.tif, .tiff) support for photo scanning
