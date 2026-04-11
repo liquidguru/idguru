@@ -20,6 +20,24 @@ idGuru uses Claude AI to automatically identify marine species in your underwate
 
 ## Installation
 
+## Windows — One-Click Installer (No setup required)
+
+The easiest way to get started on Windows. No Python, no ffmpeg, no dependencies — just download and run.
+
+**[⬇️ Download idGuru.exe](https://github.com/liquidguru/idguru/releases/latest)**
+
+1. Download `idGuru.exe` from the latest release
+2. Double-click to run — Windows may show a security warning the first time, click **More info → Run anyway**
+3. idGuru opens in your browser automatically at `http://localhost:5001`
+4. A small **idGuru icon appears in your system tray** (bottom right) — right-click it to **Open** or **Quit**
+5. Click the **⚙️ gear icon** in the browser to enter your Anthropic API key
+
+> **Note:** The exe is self-contained and includes ffmpeg. Your index data is stored in `C:\Users\<you>\.underwater_index\` and is preserved between sessions.
+
+---
+
+## Windows — Manual Installation (for developers)
+
 ### Windows
 
 **1. Install Python**
