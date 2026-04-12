@@ -1,0 +1,11 @@
+﻿# Python
+__pycache__/
+
+# PyInstaller build artifacts
+build/
+dist/
+
+# Local files
+versions/
+plans/
+error.txt
