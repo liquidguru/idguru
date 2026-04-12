@@ -115,11 +115,23 @@ For RAW files, install rawpy: `pip install rawpy`
 
 ## Browsing & Editing
 
-- **Videos tab** — browse all indexed frames, filter by species/country/region/area/site
-- **Photos tab** — browse photos, switch to **By Species** to see grouped results
+- **Videos tab** — browse all indexed frames, filter by species/country/region/area/site/**folder**
+- **Photos tab** — browse photos, switch to **By Species** to see grouped results, filter by folder
 - Click any card to open the detail modal — edit species, habitat, behaviours, notes, add location/date, rename files
 - **Ctrl+click** or **Shift+click** to select multiple items for bulk editing
 - Set **ID Confidence** to **Confirmed** to trigger an automatic species information lookup
+
+### Filter by folder
+Both the Videos and Photos tabs now have a **folder dropdown** filter. This lets you narrow results to a specific indexed folder — useful when you have footage from multiple dive trips or locations in your archive.
+
+### Re-analysing with Claude AI
+If you've updated your prompt, changed regions, or want to re-run identification after a model upgrade, you can **re-analyse** any item:
+
+- **Single frame or photo** — open the detail modal, click **🔄 Re-analyse**
+- **Multiple selected items** — use the **🔄 Re-analyse** button in the selection bar
+- **Entire folder** — go to the folder list on the Scan tab, click **🔄 Re-analyse** next to any folder
+
+Re-analyse replaces the AI-generated fields (species, habitat, behaviours, notes, visibility) with fresh results while preserving your manual edits to location, date, and ID confidence. Each re-analyse uses your Anthropic API credits (~$0.002–0.004 per image).
 
 ### Confirming IDs & looking up species info
 When you've identified a species (either correcting Claude or confirming its guess):
@@ -195,9 +207,10 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 **Blank cmd window appears on Windows**
 - Use `launcher.pyw` not `launcher.py` — the `.pyw` extension suppresses the console window
 
-**Photos not scanning when using a mapped network drive (e.g. V:\)**
-- Use the full UNC path instead: `\\servername\share\folder`
-- Or update to v1.2.3 which resolves mapped drive letters automatically
+**Photos or videos using mapped network drives (e.g. V:\)**
+- idGuru automatically resolves mapped drive letters to UNC paths at scan time
+- On launch, existing database records are also normalised — any old mapped-drive paths are converted to UNC
+- If you still see mixed paths, just restart idGuru and it will fix them automatically
 
 ---
 
@@ -247,6 +260,12 @@ Built by [Kaj Maney / liquidGuru](https://www.liquidguru.com) · Powered by [Cla
 ---
 
 ## Changelog
+
+### v1.2.8
+- **Re-analyse** — send any indexed frame or photo back through Claude AI for fresh identification (single item, bulk selection, or entire folder)
+- **Filter by folder** — new folder dropdown on both Videos and Photos tabs to narrow results to a specific indexed folder
+- **UNC path normalisation** — mapped drive letters (e.g. V:\) are now automatically resolved to UNC paths (e.g. \\server\share\) both at scan time and on launch for existing records
+- Re-analyse preserves user-entered metadata (location, date, ID confidence) while updating AI-generated fields
 
 ### v1.2.7
 - Windows single-file executable (idGuru.exe) — no Python or ffmpeg installation required
