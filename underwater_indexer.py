@@ -97,6 +97,38 @@ def init_db():
     return conn
 
 
+def resolve_to_unc(path):
+    """Resolve mapped drive letters (e.g. V:\\) to UNC paths (e.g. \\\\server\\share\\)."""
+    if IS_WIN and len(path) >= 2 and path[1] == ':':
+        try:
+            _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
+                                text=True, **POPEN_FLAGS)
+            for _line in _r.stdout.splitlines():
+                if 'Remote name' in _line or 'Remotename' in _line:
+                    return _line.split()[-1] + path[2:]
+        except: pass
+    return path
+
+
+def normalise_db_paths(conn):
+    """Fix existing DB records that still use mapped drive letters instead of UNC paths."""
+    if not IS_WIN: return
+    fixed = 0
+    for vid, path in conn.execute("SELECT id, path FROM videos").fetchall():
+        unc = resolve_to_unc(path)
+        if unc != path:
+            conn.execute("UPDATE videos SET path=? WHERE id=?", (unc, vid))
+            fixed += 1
+    for pid, path in conn.execute("SELECT id, path FROM photos").fetchall():
+        unc = resolve_to_unc(path)
+        if unc != path:
+            conn.execute("UPDATE photos SET path=? WHERE id=?", (unc, pid))
+            fixed += 1
+    if fixed:
+        conn.commit()
+        console.print(f"[cyan]Normalised {fixed} path(s) from mapped drives to UNC.[/cyan]")
+
+
 def file_id(path):
     s = path.stat()
     return hashlib.md5(f"{path.name}{s.st_size}".encode()).hexdigest()
@@ -426,7 +458,7 @@ def resize_photo_for_thumb(src_path, out_path):
                 with ThreadPoolExecutor(max_workers=1) as ex:
                     fut = ex.submit(_decode_raw)
                     try:
-                        rgb = fut.result(timeout=60)
+                        rgb = fut.result(timeout=120)
                     except Exception:
                         console.print(f"[yellow]  Timed out decoding {src_path.name} — skipping[/yellow]")
                         return False
@@ -558,6 +590,10 @@ def cmd_viewer(conn, headless=False):
     scan_queue = queue.Queue()
     photo_stop_flag = threading.Event()
     photo_queue = queue.Queue()
+    reanalyse_stop_flag = threading.Event()
+    reanalyse_queue = queue.Queue()
+    # Normalise any existing DB paths from mapped drives to UNC
+    normalise_db_paths(conn)
     app = Flask(__name__)
 
     def get_db():
@@ -790,6 +826,7 @@ button:hover{opacity:.85}
     <select id="region-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All regions</option></select>
     <select id="area-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All areas</option></select>
     <select id="site-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All sites</option></select>
+    <select id="folder-filter" onchange="currentPage=1;load()" style="flex:1;min-width:0"><option>All folders</option></select>
     <select id="sort-filter" onchange="currentPage=1;load()" style="min-width:0;font-size:12px">
       <option value="">Sort: Default</option>
       <option value="confidence_asc">ID: Uncertain first</option>
@@ -840,6 +877,7 @@ button:hover{opacity:.85}
       <select id="photo-region-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All regions</option></select>
       <select id="photo-area-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All areas</option></select>
       <select id="photo-site-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All sites</option></select>
+      <select id="photo-folder-filter" onchange="photoPage=1;loadPhotos()" style="flex:1;min-width:0"><option>All folders</option></select>
       <select id="photo-sort-filter" onchange="photoPage=1;loadPhotos()" style="min-width:0;font-size:12px">
         <option value="">Sort: Default</option>
         <option value="confidence_asc">ID: Uncertain first</option>
@@ -993,6 +1031,7 @@ button:hover{opacity:.85}
   <button class="btn-blue btn-sm" onclick="bulkSetSpecies()">Set Species</button>
   <button class="btn-slate btn-sm" onclick="bulkSetSiteDate()">Set Location/Date</button>
   <button class="btn-purple btn-sm" onclick="openConfirmIDPicker('frames')">&#10003; Confirm ID &amp; Lookup</button>
+  <button class="btn-amber btn-sm" onclick="reanalyseSelectedFrames()">&#128260; Re-analyse</button>
   <button class="btn-slate btn-sm" onclick="clearSelection()">Clear</button>
 </div>
 
@@ -1004,6 +1043,7 @@ button:hover{opacity:.85}
   <button class="btn-slate btn-sm" onclick="photosBulkSetSiteDate()">Set Location/Date</button>
   <button class="btn-purple btn-sm" onclick="openConfirmIDPicker('photos')">&#10003; Confirm ID &amp; Lookup</button>
   <button class="btn-amber btn-sm" onclick="openBatchRename('photos')">Batch Rename</button>
+  <button class="btn-amber btn-sm" onclick="reanalyseSelectedPhotos()">&#128260; Re-analyse</button>
   <button class="btn-red btn-sm" onclick="photosBulkMarkDelete()">Mark for Delete</button>
   <button class="btn-slate btn-sm" onclick="clearPhotoSelection()">Clear</button>
 </div>
@@ -1219,6 +1259,7 @@ button:hover{opacity:.85}
         <button class="btn-purple" onclick="copyPath()">Copy Path</button>
         <button class="btn-slate" onclick="renameFile()">Rename File</button>
         <button id="btn-reviewed" onclick="toggleReviewed()" style="background:#0f2540;color:#475569;border:1px solid #1e3a5f">Mark Reviewed</button>
+        <button class="btn-amber" onclick="reanalyseFrame()">&#128260; Re-analyse</button>
         <button class="btn-slate" onclick="closeModal()">Close</button>
       </div>
       <div class="mnote" id="m-note"></div>
@@ -1312,6 +1353,7 @@ button:hover{opacity:.85}
         <button class="btn-slate" onclick="renamePhoto()">Rename File</button>
         <button id="pm-btn-reviewed" onclick="togglePhotoReviewed()" style="background:#0f2540;color:#475569;border:1px solid #1e3a5f">Mark Reviewed</button>
         <button id="pm-btn-delete" onclick="togglePhotoDelete()" style="background:#0f2540;color:#475569;border:1px solid #1e3a5f">Mark for Delete</button>
+        <button class="btn-amber" onclick="reanalysePhoto()">&#128260; Re-analyse</button>
         <button class="btn-slate" onclick="closePhotoModal()">Close</button>
       </div>
       <div class="mnote" id="pm-note"></div>
@@ -1382,7 +1424,7 @@ function switchTab(t) {
     document.getElementById('tab-'+n).classList.toggle('active', n===t);
   });
   if (t==='scan') { loadFolderList(); loadPhotoFolderList(); }
-  if (t==='photos') { loadPhotoStat(); loadPhotos(); loadPhotoSpecies(); loadPhotoSites(); loadPhotoCountries(); loadPhotoRegions(); loadPhotoAreas(); }
+  if (t==='photos') { loadPhotoStat(); loadPhotos(); loadPhotoSpecies(); loadPhotoSites(); loadPhotoCountries(); loadPhotoRegions(); loadPhotoAreas(); loadPhotoFolders(); }
   if (t==='home') { loadHomeStat(); }
 }
 
@@ -1393,6 +1435,7 @@ async function load() {
   var country = document.getElementById('country-filter').value;
   var region = document.getElementById('region-filter').value;
   var area = document.getElementById('area-filter').value;
+  var folder = document.getElementById('folder-filter').value;
   var sort = document.getElementById('sort-filter').value;
   var p = new URLSearchParams();
   if (q) p.set('q', q);
@@ -1401,6 +1444,7 @@ async function load() {
   if (country && country !== 'All countries') p.set('country', country);
   if (region && region !== 'All regions') p.set('region', region);
   if (area && area !== 'All areas') p.set('area', area);
+  if (folder && folder !== 'All folders') p.set('folder', folder);
   if (sort) p.set('sort', sort);
 
   if (currentView === 'clips') {
@@ -1807,13 +1851,13 @@ async function bulkSiteDateConfirm() {
     await fetch('/api/bulk_photo_site_date', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({photo_ids:ids, dive_site:site, dive_date:date, country:country, region:region, area:area})});
     clearPhotoSelection();
-    loadPhotoSites(); loadPhotoCountries(); loadPhotoRegions(); loadPhotoAreas();
+    loadPhotoSites(); loadPhotoCountries(); loadPhotoRegions(); loadPhotoAreas(); loadPhotoFolders();
   } else {
     var ids = Object.keys(selected);
     await fetch('/api/bulk_site_date', {method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({frame_ids:ids, dive_site:site, dive_date:date, country:country, region:region, area:area})});
     clearSelection();
-    loadAllSites(); loadAllCountries(); loadAllRegions(); loadAllAreas();
+    loadAllSites(); loadAllCountries(); loadAllRegions(); loadAllAreas(); loadAllFolders();
   }
   window._bulkTarget = null;
 }
@@ -1855,7 +1899,7 @@ async function saveSiteDate() {
   current.dive_site=site; current.dive_date=date; current.country=country; current.region=region; current.area=area;
   document.getElementById('m-note').textContent='Saved.';
   setTimeout(function(){ document.getElementById('m-note').textContent=''; }, 1500);
-  loadAllSites(); loadAllCountries(); loadAllRegions(); loadAllAreas();
+  loadAllSites(); loadAllCountries(); loadAllRegions(); loadAllAreas(); loadAllFolders();
 }
 
 async function loadAllSpecies() {
@@ -1901,6 +1945,14 @@ async function loadAllAreas() {
   var sel = document.getElementById('area-filter');
   sel.innerHTML = '<option>All areas</option>';
   allAreas.forEach(function(s){ var o=document.createElement('option'); o.textContent=s; sel.appendChild(o); });
+}
+
+async function loadAllFolders() {
+  var r = await fetch('/api/folders');
+  var data = await r.json();
+  var sel = document.getElementById('folder-filter');
+  sel.innerHTML = '<option>All folders</option>';
+  data.forEach(function(f){ var o=document.createElement('option'); o.value=f.folder; o.textContent=f.folder.split(/[\\/]/).pop()||f.folder; o.title=f.folder; sel.appendChild(o); });
 }
 
 function acSearch() {
@@ -1962,7 +2014,7 @@ async function startScan() {
       document.getElementById('prog-bar').style.width='100%';
       document.getElementById('scan-btn').style.display='';
       document.getElementById('stop-btn').style.display=NONE;
-      scanES.close(); loadFolderList(); loadAllSpecies(); loadAllSites(); loadStat(); load();
+      scanES.close(); loadFolderList(); loadAllSpecies(); loadAllSites(); loadAllFolders(); loadStat(); load();
     } else if (d.type==='error') {
       document.getElementById('prog-label').textContent='Error: '+d.msg;
       document.getElementById('scan-btn').style.display='';
@@ -1989,12 +2041,16 @@ async function loadFolderList() {
     html+='<div class="fl-meta">'+f.videos+' video(s)  '+f.frames+' frames</div></div>';
     html+='<div style="display:flex;gap:6px">';
     html+='<button class="btn-amber btn-sm" data-idx="'+i+'">Folder</button>';
+    html+='<button class="btn-blue btn-sm" data-idx="'+i+'">🔄 Re-analyse</button>';
     html+='<button class="btn-red btn-sm" data-idx="'+i+'">Remove</button>';
     html+='</div></div>';
   });
   el.innerHTML=html;
   el.querySelectorAll('.btn-amber').forEach(function(btn){
     btn.addEventListener('click', function(){ openExplorer(data[btn.dataset.idx].folder); });
+  });
+  el.querySelectorAll('.btn-blue').forEach(function(btn){
+    btn.addEventListener('click', function(){ reanalyseVideoFolder(data[btn.dataset.idx].folder, data[btn.dataset.idx].frames); });
   });
   el.querySelectorAll('.btn-red').forEach(function(btn){
     btn.addEventListener('click', function(){ removeVideoFolder(data[btn.dataset.idx].folder); });
@@ -2211,7 +2267,7 @@ async function loadHomeStat() {
     dv.videos + ' videos  \u00b7  ' + dv.frames + ' frames  \u00b7  ' + dp.photos + ' photos indexed';
 }
 
-loadAllSpecies(); loadAllSites(); loadAllCountries(); loadAllRegions(); loadAllAreas(); load(); loadStat(); loadHomeStat(); loadSettings();
+loadAllSpecies(); loadAllSites(); loadAllCountries(); loadAllRegions(); loadAllAreas(); loadAllFolders(); load(); loadStat(); loadHomeStat(); loadSettings();
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
@@ -2372,6 +2428,7 @@ async function loadPhotos() {
   var region = document.getElementById('photo-region-filter').value;
   var area = document.getElementById('photo-area-filter').value;
   var site = document.getElementById('photo-site-filter').value;
+  var folder = document.getElementById('photo-folder-filter').value;
   var sort = document.getElementById('photo-sort-filter').value;
   var p = new URLSearchParams();
   if (q) p.set('q', q);
@@ -2380,6 +2437,7 @@ async function loadPhotos() {
   if (region && region !== 'All regions') p.set('region', region);
   if (area && area !== 'All areas') p.set('area', area);
   if (site && site !== 'All sites') p.set('site', site);
+  if (folder && folder !== 'All folders') p.set('folder', folder);
   if (sort) p.set('sort', sort);
   p.set('page', photoPage); p.set('page_size', PAGE_SIZE);
   var r = await fetch('/api/photos?' + p);
@@ -2576,7 +2634,7 @@ async function savePhotoSiteDate() {
   currentPhoto.dive_site=site; currentPhoto.dive_date=date; currentPhoto.country=country; currentPhoto.region=region; currentPhoto.area=area;
   document.getElementById('pm-note').textContent='Saved.';
   setTimeout(function(){document.getElementById('pm-note').textContent='';},1500);
-  loadPhotoSites(); loadAllSites(); loadPhotoCountries(); loadPhotoRegions(); loadPhotoAreas();
+  loadPhotoSites(); loadAllSites(); loadPhotoCountries(); loadPhotoRegions(); loadPhotoAreas(); loadPhotoFolders();
 }
 
 async function togglePhotoReviewed() {
@@ -2687,6 +2745,14 @@ async function loadPhotoAreas() {
   data.forEach(function(s){ var o=document.createElement('option'); o.textContent=s; sel.appendChild(o); });
 }
 
+async function loadPhotoFolders() {
+  var r = await fetch('/api/photo_folders');
+  var data = await r.json();
+  var sel = document.getElementById('photo-folder-filter');
+  sel.innerHTML = '<option>All folders</option>';
+  data.forEach(function(f){ var o=document.createElement('option'); o.value=f.folder; o.textContent=f.folder.split(/[\\/]/).pop()||f.folder; o.title=f.folder; sel.appendChild(o); });
+}
+
 async function browsePhotoFolder() {
   var r = await fetch('/api/browse'); var d = await r.json();
   if (d.path) document.getElementById('photo-scan-path').value = d.path;
@@ -2719,7 +2785,7 @@ async function startPhotoScan() {
       document.getElementById('photo-prog-bar').style.width = '100%';
       document.getElementById('photo-scan-btn').style.display = '';
       document.getElementById('photo-stop-btn').style.display = NONE;
-      photoScanES.close(); loadPhotoFolderList(); loadPhotoSpecies(); loadPhotoSites(); loadPhotoStat(); loadPhotos();
+      photoScanES.close(); loadPhotoFolderList(); loadPhotoSpecies(); loadPhotoSites(); loadPhotoFolders(); loadPhotoStat(); loadPhotos();
     } else if (d.type==='error') {
       document.getElementById('photo-prog-label').textContent = 'Error: '+d.msg;
       document.getElementById('photo-scan-btn').style.display = '';
@@ -2975,7 +3041,7 @@ async function removeVideoFolder(folder) {
   var r = await fetch('/api/remove_video_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({folder:folder})});
   var d = await r.json();
   alert('Removed '+d.videos+' video(s) and '+d.frames+' frame(s) from index.');
-  loadFolderList(); loadAllSpecies(); loadAllSites(); loadStat(); load();
+  loadFolderList(); loadAllSpecies(); loadAllSites(); loadAllFolders(); loadStat(); load();
 }
 
 async function removePhotoFolder(folder) {
@@ -2983,7 +3049,7 @@ async function removePhotoFolder(folder) {
   var r = await fetch('/api/remove_photo_folder', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({folder:folder})});
   var d = await r.json();
   alert('Removed '+d.photos+' photo(s) from index.');
-  loadPhotoFolderList(); loadPhotoSpecies(); loadPhotoSites(); loadPhotoStat(); loadPhotos();
+  loadPhotoFolderList(); loadPhotoSpecies(); loadPhotoSites(); loadPhotoFolders(); loadPhotoStat(); loadPhotos();
 }
 
 async function loadPhotoFolderList() {
@@ -2996,6 +3062,7 @@ async function loadPhotoFolderList() {
     html+='<div class="fl-meta">'+f.photos+' photo(s)</div></div>';
     html+='<div style="display:flex;gap:6px">';
     html+='<button class="btn-amber btn-sm" data-idx="'+i+'">Folder</button>';
+    html+='<button class="btn-blue btn-sm" data-idx="'+i+'">🔄 Re-analyse</button>';
     html+='<button class="btn-red btn-sm" data-idx="'+i+'">Remove</button>';
     html+='</div></div>';
   });
@@ -3003,10 +3070,183 @@ async function loadPhotoFolderList() {
   el.querySelectorAll('.btn-amber').forEach(function(btn){
     btn.addEventListener('click', function(){ openExplorer(data[btn.dataset.idx].folder); });
   });
+  el.querySelectorAll('.btn-blue').forEach(function(btn){
+    btn.addEventListener('click', function(){ reanalysePhotoFolder(data[btn.dataset.idx].folder, data[btn.dataset.idx].photos); });
+  });
   el.querySelectorAll('.btn-red').forEach(function(btn){
     btn.addEventListener('click', function(){ removePhotoFolder(data[btn.dataset.idx].folder); });
   });
 }
+
+// ── Re-analyse functions ──────────────────────────────────────────────
+
+var _reanalyseES = null;
+
+var REANALYSE_CONFIRM = 'This sends the image back through Claude AI for fresh identification. ' +
+  'This is usually only needed when the underlying ID logic has changed — for example after a prompt update, model upgrade, or region change.\\n\\n' +
+  'Species, habitat, behaviours, notes and visibility will be replaced with new AI results. ' +
+  'Your manual edits to location, date, and ID confidence are preserved.\\n\\n' +
+  'Each re-analyse uses your Anthropic API credits — approx $0.002 to $0.004 per image.';
+
+async function reanalysePhoto() {
+  if (!currentPhoto) return;
+  if (!confirm('Re-analyse this photo with Claude AI?\\n\\n' + REANALYSE_CONFIRM)) return;
+  var note = document.getElementById('pm-note');
+  note.textContent = 'Re-analysing...';
+  try {
+    var r = await fetch('/api/reanalyse_photo', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: currentPhoto.id})});
+    var d = await r.json();
+    if (d.ok) {
+      currentPhoto.species = d.species || [];
+      currentPhoto.habitat = d.habitat || '';
+      currentPhoto.behaviours = d.behaviours || [];
+      currentPhoto.notes = d.notes || '';
+      currentPhoto.visibility = d.visibility || '';
+      renderPhotoSpeciesTags(currentPhoto.species);
+      document.getElementById('pm-habitat').value = d.habitat || '';
+      document.getElementById('pm-behs').value = (d.behaviours||[]).join(', ');
+      document.getElementById('pm-notes').value = d.notes || '';
+      document.getElementById('pm-visibility').value = d.visibility || '';
+      note.textContent = 'Re-analysed!';
+      loadPhotos(); loadPhotoSpecies();
+    } else {
+      note.textContent = 'Error: ' + (d.error || 'unknown');
+    }
+  } catch(e) {
+    note.textContent = 'Error: ' + e.message;
+  }
+  setTimeout(function(){ note.textContent = ''; }, 3000);
+}
+
+async function reanalyseFrame() {
+  if (!current) return;
+  if (!confirm('Re-analyse this frame with Claude AI?\\n\\n' + REANALYSE_CONFIRM)) return;
+  var note = document.getElementById('m-note');
+  note.textContent = 'Re-analysing...';
+  try {
+    var r = await fetch('/api/reanalyse_frame', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id: current.id})});
+    var d = await r.json();
+    if (d.ok) {
+      current.species = d.species || [];
+      current.habitat = d.habitat || '';
+      current.behaviours = d.behaviours || [];
+      current.notes = d.notes || '';
+      current.visibility = d.visibility || '';
+      renderSpeciesTags(current.species);
+      document.getElementById('m-habitat').value = d.habitat || '';
+      document.getElementById('m-behs').value = (d.behaviours||[]).join(', ');
+      document.getElementById('m-notes').value = d.notes || '';
+      document.getElementById('m-visibility').value = d.visibility || '';
+      note.textContent = 'Re-analysed!';
+      load(); loadAllSpecies();
+    } else {
+      note.textContent = 'Error: ' + (d.error || 'unknown');
+    }
+  } catch(e) {
+    note.textContent = 'Error: ' + e.message;
+  }
+  setTimeout(function(){ note.textContent = ''; }, 3000);
+}
+
+async function reanalyseSelectedPhotos() {
+  var ids = Object.keys(selectedPhotos);
+  if (!ids.length) return;
+  if (!confirm('Re-analyse ' + ids.length + ' selected photo(s) with Claude AI?\\n\\n' + REANALYSE_CONFIRM)) return;
+  var r = await fetch('/api/reanalyse_photos', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ids: ids})});
+  var d = await r.json();
+  if (d.started) {
+    clearPhotoSelection();
+    listenReanalyseProgress(function() { loadPhotos(); loadPhotoSpecies(); });
+  } else {
+    alert('Error: ' + (d.error || 'unknown'));
+  }
+}
+
+async function reanalyseSelectedFrames() {
+  var ids = Object.keys(selected);
+  if (!ids.length) return;
+  if (!confirm('Re-analyse ' + ids.length + ' selected frame(s) with Claude AI?\\n\\n' + REANALYSE_CONFIRM)) return;
+  var r = await fetch('/api/reanalyse_frames', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ids: ids})});
+  var d = await r.json();
+  if (d.started) {
+    clearSelection();
+    listenReanalyseProgress(function() { load(); loadAllSpecies(); });
+  } else {
+    alert('Error: ' + (d.error || 'unknown'));
+  }
+}
+
+async function reanalysePhotoFolder(folder, count) {
+  if (!confirm('Re-analyse all ' + count + ' photo(s) in this folder with Claude AI?\\n\\n' + REANALYSE_CONFIRM)) return;
+  var r = await fetch('/api/reanalyse_photos', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({folder: folder})});
+  var d = await r.json();
+  if (d.started) {
+    listenReanalyseProgress(function() { loadPhotos(); loadPhotoSpecies(); });
+  } else {
+    alert('Error: ' + (d.error || 'unknown'));
+  }
+}
+
+async function reanalyseVideoFolder(folder, count) {
+  if (!confirm('Re-analyse all ' + count + ' frame(s) in this folder with Claude AI?\\n\\n' + REANALYSE_CONFIRM)) return;
+  var r = await fetch('/api/reanalyse_frames', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({folder: folder})});
+  var d = await r.json();
+  if (d.started) {
+    listenReanalyseProgress(function() { load(); loadAllSpecies(); });
+  } else {
+    alert('Error: ' + (d.error || 'unknown'));
+  }
+}
+
+function listenReanalyseProgress(onDone) {
+  if (_reanalyseES) _reanalyseES.close();
+  // Show a small progress toast
+  var toast = document.getElementById('reanalyse-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'reanalyse-toast';
+    toast.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#0c1e35;border:1px solid #1e3a5f;color:#7dd4fc;padding:10px 20px;border-radius:10px;font-size:13px;z-index:60;display:flex;align-items:center;gap:10px';
+    document.body.appendChild(toast);
+  }
+  toast.innerHTML = '<span id="reanalyse-toast-msg">Re-analysing...</span><button class="btn-red btn-sm" onclick="stopReanalyse()">Stop</button>';
+  toast.style.display = 'flex';
+  _reanalyseES = new EventSource('/api/reanalyse_progress');
+  _reanalyseES.onmessage = function(e) {
+    var d = JSON.parse(e.data);
+    if (d.type === 'ping') return;
+    if (d.type === 'progress') {
+      var msgEl = document.getElementById('reanalyse-toast-msg');
+      if (msgEl) msgEl.textContent = d.msg + ' (' + (d.pct||0) + '%)';
+    } else if (d.type === 'done') {
+      var msgEl = document.getElementById('reanalyse-toast-msg');
+      if (msgEl) msgEl.textContent = d.msg;
+      _reanalyseES.close(); _reanalyseES = null;
+      if (onDone) onDone();
+      setTimeout(function(){ toast.style.display = 'none'; }, 3000);
+    } else if (d.type === 'error') {
+      var msgEl = document.getElementById('reanalyse-toast-msg');
+      if (msgEl) { msgEl.textContent = 'Error: ' + d.msg; msgEl.style.color = '#ef4444'; }
+      _reanalyseES.close(); _reanalyseES = null;
+      setTimeout(function(){ toast.style.display = 'none'; }, 4000);
+    }
+  };
+}
+
+async function stopReanalyse() {
+  fetch('/api/reanalyse_stop', {method:'POST'});
+  if (_reanalyseES) { _reanalyseES.close(); _reanalyseES = null; }
+  var toast = document.getElementById('reanalyse-toast');
+  if (toast) toast.style.display = 'none';
+}
+
+// ── End re-analyse functions ──────────────────────────────────────────
+
 </script>
 </body>
 </html>"""
@@ -3037,14 +3277,7 @@ async function loadPhotoFolderList() {
         workers = data.get("workers", DEFAULT_WORKERS)
         batch_mode = data.get("batch", False)
         region = data.get("region") or None
-        if len(path) >= 2 and path[1] == ':':
-            try:
-                _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
-                                    text=True, **POPEN_FLAGS)
-                for _line in _r.stdout.splitlines():
-                    if 'Remote name' in _line or 'Remotename' in _line:
-                        path = _line.split()[-1] + path[2:]; break
-            except: pass
+        path = resolve_to_unc(path)
         def run():
             stop_flag.clear()
             if not get_ai_client():
@@ -3171,6 +3404,7 @@ async function loadPhotoFolderList() {
         country = request.args.get("country","")
         region = request.args.get("region","")
         area = request.args.get("area","")
+        folder = request.args.get("folder","")
         vid_id = request.args.get("vid_id","")
         sort = request.args.get("sort","")
         page = int(request.args.get("page", 1))
@@ -3190,6 +3424,7 @@ async function loadPhotoFolderList() {
         if country: base += " AND v.country=?"; params.append(country)
         if region: base += " AND v.region=?"; params.append(region)
         if area: base += " AND v.area=?"; params.append(area)
+        if folder: base += " AND v.path LIKE ?"; params.append(folder+"%")
 
         total = db.execute("SELECT COUNT(*) "+base, params).fetchone()[0]
 
@@ -3445,6 +3680,7 @@ async function loadPhotoFolderList() {
         country = request.args.get("country","")
         region = request.args.get("region","")
         area = request.args.get("area","")
+        folder = request.args.get("folder","")
         sort = request.args.get("sort","")
         page = int(request.args.get("page",1))
         page_size = int(request.args.get("page_size",100))
@@ -3459,6 +3695,7 @@ async function loadPhotoFolderList() {
         if country: base += " AND country=?"; params.append(country)
         if region: base += " AND region=?"; params.append(region)
         if area: base += " AND area=?"; params.append(area)
+        if folder: base += " AND path LIKE ?"; params.append(folder+"%")
         total = db.execute("SELECT COUNT(*) "+base, params).fetchone()[0]
         confidence_order = "CASE COALESCE(id_confidence,'') WHEN 'confirmed' THEN 2 WHEN 'probable' THEN 1 WHEN 'uncertain' THEN 0 ELSE -1 END"
         if sort == "confidence_desc":
@@ -3690,14 +3927,7 @@ async function loadPhotoFolderList() {
         workers = data.get("workers", DEFAULT_WORKERS)
         batch_mode = data.get("batch", False)
         region = data.get("region") or None
-        if len(path) >= 2 and path[1] == ':':
-            try:
-                _r = subprocess.run(['net', 'use', path[:2]], capture_output=True,
-                                    text=True, **POPEN_FLAGS)
-                for _line in _r.stdout.splitlines():
-                    if 'Remote name' in _line or 'Remotename' in _line:
-                        path = _line.split()[-1] + path[2:]; break
-            except: pass
+        path = resolve_to_unc(path)
         def run():
             photo_stop_flag.clear()
             if not get_ai_client():
@@ -3743,6 +3973,211 @@ async function loadPhotoFolderList() {
                     if msg.get("type") in ("done","error"): break
                 except: yield "data: "+json.dumps({"type":"ping"})+"\n\n"
         return Response(stream(), mimetype="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+
+    # ── Re-analyse routes ──────────────────────────────────────────────
+
+    def _get_default_region():
+        """Get default region from settings DB."""
+        try:
+            _r = conn.execute("SELECT value FROM settings WHERE key='default_region'").fetchone()
+            return _r[0] if _r else None
+        except:
+            return None
+
+    @app.route("/api/reanalyse_photo", methods=["POST"])
+    def reanalyse_photo():
+        data = request.json
+        pid = data.get("id")
+        if not pid: return jsonify({"error": "no id"}), 400
+        client = get_ai_client()
+        if not client: return jsonify({"error": "No API key set. Open Settings (gear icon) and enter your Anthropic API key."}), 400
+        db = get_db()
+        row = db.execute("SELECT thumb_path, path FROM photos WHERE id=?", (pid,)).fetchone()
+        if not row: return jsonify({"error": "Photo not found"}), 404
+        thumb_path = row[0]
+        # Check thumbnail exists; try to regenerate if missing
+        if not thumb_path or not Path(thumb_path).exists():
+            orig = Path(row[1])
+            if orig.exists():
+                out = FRAMES_DIR / f"{pid}.jpg"
+                if resize_photo_for_thumb(orig, out):
+                    thumb_path = str(out)
+                    db.execute("UPDATE photos SET thumb_path=? WHERE id=?", (thumb_path, pid))
+                    db.commit()
+                else:
+                    return jsonify({"error": "Could not regenerate thumbnail"}), 500
+            else:
+                return jsonify({"error": "Thumbnail and original file not found"}), 404
+        region = data.get("region") or _get_default_region()
+        try:
+            result = analyze_frame(client, thumb_path, region)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        species = json.dumps(normalise_species(result.get("species", [])))
+        habitat = result.get("habitat", "")
+        visibility = result.get("visibility", "")
+        behaviours = json.dumps(result.get("behaviours", []))
+        notes = result.get("notes", "")
+        db.execute("UPDATE photos SET species=?, habitat=?, visibility=?, behaviours=?, notes=?, indexed_at=? WHERE id=?",
+                   (species, habitat, visibility, behaviours, notes, datetime.now().isoformat(), pid))
+        db.commit()
+        return jsonify({"ok": True, "species": json.loads(species), "habitat": habitat,
+                        "visibility": visibility, "behaviours": json.loads(behaviours), "notes": notes})
+
+    @app.route("/api/reanalyse_frame", methods=["POST"])
+    def reanalyse_frame():
+        data = request.json
+        fid = data.get("id")
+        if not fid: return jsonify({"error": "no id"}), 400
+        client = get_ai_client()
+        if not client: return jsonify({"error": "No API key set. Open Settings (gear icon) and enter your Anthropic API key."}), 400
+        db = get_db()
+        row = db.execute("SELECT thumb_path FROM frames WHERE id=?", (fid,)).fetchone()
+        if not row: return jsonify({"error": "Frame not found"}), 404
+        thumb_path = row[0]
+        if not thumb_path or not Path(thumb_path).exists():
+            return jsonify({"error": "Thumbnail not found"}), 404
+        region = data.get("region") or _get_default_region()
+        try:
+            result = analyze_frame(client, thumb_path, region)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        species = json.dumps(normalise_species(result.get("species", [])))
+        habitat = result.get("habitat", "")
+        visibility = result.get("visibility", "")
+        behaviours = json.dumps(result.get("behaviours", []))
+        notes = result.get("notes", "")
+        db.execute("UPDATE frames SET species=?, habitat=?, visibility=?, behaviours=?, notes=? WHERE id=?",
+                   (species, habitat, visibility, behaviours, notes, fid))
+        db.commit()
+        return jsonify({"ok": True, "species": json.loads(species), "habitat": habitat,
+                        "visibility": visibility, "behaviours": json.loads(behaviours), "notes": notes})
+
+    @app.route("/api/reanalyse_photos", methods=["POST"])
+    def reanalyse_photos_bulk():
+        data = request.json
+        ids = data.get("ids", [])
+        folder = data.get("folder", "").strip()
+        region = data.get("region") or None
+        db = get_db()
+        if folder:
+            rows = db.execute("SELECT id, thumb_path, path FROM photos WHERE path LIKE ?", (folder + "%",)).fetchall()
+            ids = [r[0] for r in rows]
+            thumb_map = {r[0]: r[1] for r in rows}
+            path_map = {r[0]: r[2] for r in rows}
+        else:
+            if not ids: return jsonify({"error": "no ids"}), 400
+            rows = db.execute("SELECT id, thumb_path, path FROM photos WHERE id IN (" + ",".join(["?"]*len(ids)) + ")", ids).fetchall()
+            thumb_map = {r[0]: r[1] for r in rows}
+            path_map = {r[0]: r[2] for r in rows}
+        if not ids: return jsonify({"error": "No photos found"}), 400
+        final_ids = list(ids)
+        def run():
+            reanalyse_stop_flag.clear()
+            if not get_ai_client():
+                reanalyse_queue.put({"type": "error", "msg": "No API key set."}); return
+            default_region = region or _get_default_region()
+            total = len(final_ids)
+            reanalyse_queue.put({"type": "progress", "msg": "Re-analysing " + str(total) + " photo(s)...", "pct": 0})
+            done = 0
+            for pid in final_ids:
+                if reanalyse_stop_flag.is_set(): break
+                tp = thumb_map.get(pid)
+                # Try to regenerate thumbnail if missing
+                if not tp or not Path(tp).exists():
+                    orig = Path(path_map.get(pid, ""))
+                    if orig.exists():
+                        out = FRAMES_DIR / f"{pid}.jpg"
+                        if resize_photo_for_thumb(orig, out):
+                            tp = str(out)
+                if not tp or not Path(tp).exists():
+                    done += 1; continue
+                try:
+                    result = analyze_frame(get_ai_client(), tp, default_region)
+                    species = json.dumps(normalise_species(result.get("species", [])))
+                    habitat = result.get("habitat", "")
+                    visibility = result.get("visibility", "")
+                    behaviours = json.dumps(result.get("behaviours", []))
+                    notes = result.get("notes", "")
+                    ldb = get_db()
+                    ldb.execute("UPDATE photos SET species=?, habitat=?, visibility=?, behaviours=?, notes=?, indexed_at=? WHERE id=?",
+                               (species, habitat, visibility, behaviours, notes, datetime.now().isoformat(), pid))
+                    ldb.commit()
+                except Exception as e:
+                    console.print(f"[yellow]  Re-analyse error photo {pid}: {e}[/yellow]")
+                done += 1
+                reanalyse_queue.put({"type": "progress", "msg": "Re-analysing " + str(done) + "/" + str(total) + " photo(s)", "pct": int(done/total*100)})
+            reanalyse_queue.put({"type": "done", "msg": "Re-analysed " + str(done) + " photo(s).", "total": done})
+        threading.Thread(target=run, daemon=True).start()
+        return jsonify({"started": True, "count": len(final_ids)})
+
+    @app.route("/api/reanalyse_frames", methods=["POST"])
+    def reanalyse_frames_bulk():
+        data = request.json
+        ids = data.get("ids", [])
+        folder = data.get("folder", "").strip()
+        region = data.get("region") or None
+        db = get_db()
+        if folder:
+            rows = db.execute("SELECT f.id, f.thumb_path FROM frames f JOIN videos v ON f.video_id=v.id WHERE v.path LIKE ?",
+                             (folder + "%",)).fetchall()
+            ids = [r[0] for r in rows]
+            thumb_map = {r[0]: r[1] for r in rows}
+        else:
+            if not ids: return jsonify({"error": "no ids"}), 400
+            rows = db.execute("SELECT id, thumb_path FROM frames WHERE id IN (" + ",".join(["?"]*len(ids)) + ")", ids).fetchall()
+            thumb_map = {r[0]: r[1] for r in rows}
+        if not ids: return jsonify({"error": "No frames found"}), 400
+        final_ids = list(ids)
+        def run():
+            reanalyse_stop_flag.clear()
+            if not get_ai_client():
+                reanalyse_queue.put({"type": "error", "msg": "No API key set."}); return
+            default_region = region or _get_default_region()
+            total = len(final_ids)
+            reanalyse_queue.put({"type": "progress", "msg": "Re-analysing " + str(total) + " frame(s)...", "pct": 0})
+            done = 0
+            for fid in final_ids:
+                if reanalyse_stop_flag.is_set(): break
+                tp = thumb_map.get(fid)
+                if not tp or not Path(tp).exists():
+                    done += 1; continue
+                try:
+                    result = analyze_frame(get_ai_client(), tp, default_region)
+                    species = json.dumps(normalise_species(result.get("species", [])))
+                    habitat = result.get("habitat", "")
+                    visibility = result.get("visibility", "")
+                    behaviours = json.dumps(result.get("behaviours", []))
+                    notes = result.get("notes", "")
+                    ldb = get_db()
+                    ldb.execute("UPDATE frames SET species=?, habitat=?, visibility=?, behaviours=?, notes=? WHERE id=?",
+                               (species, habitat, visibility, behaviours, notes, fid))
+                    ldb.commit()
+                except Exception as e:
+                    console.print(f"[yellow]  Re-analyse error frame {fid}: {e}[/yellow]")
+                done += 1
+                reanalyse_queue.put({"type": "progress", "msg": "Re-analysing " + str(done) + "/" + str(total) + " frame(s)", "pct": int(done/total*100)})
+            reanalyse_queue.put({"type": "done", "msg": "Re-analysed " + str(done) + " frame(s).", "total": done})
+        threading.Thread(target=run, daemon=True).start()
+        return jsonify({"started": True, "count": len(final_ids)})
+
+    @app.route("/api/reanalyse_progress")
+    def reanalyse_progress():
+        def stream():
+            while True:
+                try:
+                    msg = reanalyse_queue.get(timeout=30)
+                    yield "data: "+json.dumps(msg)+"\n\n"
+                    if msg.get("type") in ("done","error"): break
+                except: yield "data: "+json.dumps({"type":"ping"})+"\n\n"
+        return Response(stream(), mimetype="text/event-stream", headers={"Cache-Control":"no-cache","X-Accel-Buffering":"no"})
+
+    @app.route("/api/reanalyse_stop", methods=["POST"])
+    def reanalyse_stop():
+        reanalyse_stop_flag.set()
+        return jsonify({"stopped": True})
+
+    # ── End re-analyse routes ──────────────────────────────────────────
 
     @app.route("/api/export_csv")
     def export_csv():
