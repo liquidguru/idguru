@@ -1,18 +1,23 @@
 #!/usr/bin/env python3
 # =============================================================================
 # idGuru — AI-Powered Underwater Species Identifier
-# Copyright (c) 2025 Kaj Maney / liquidGuru (liquidguru.com)
+# Copyright (c) 2025-2026 Kaj Maney / liquidGuru (liquidguru.com)
 #
-# This software is licensed under the Creative Commons
-# Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0).
+# This program is free software: you can redistribute it and/or modify it
+# under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or (at your
+# option) any later version.
 #
-# You are free to use and share this software for personal, non-commercial
-# purposes, provided you give appropriate credit to the original author.
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+# FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License
+# for more details. You should have received a copy of the licence along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
 #
-# Commercial use, redistribution as a paid product, or incorporation into
-# a commercial service is prohibited without written permission from the author.
+# The author's underwater footage, the screenshots under docs/, and any
+# dataset derived from them are NOT covered by the AGPL and remain licensed
+# under CC BY-NC 4.0. See LICENSE-MEDIA.
 #
-# Full licence: https://creativecommons.org/licenses/by-nc/4.0/
 # Contact: kaj@liquidguru.com
 # =============================================================================
 import os, sys, json, sqlite3, base64, hashlib, subprocess, time, argparse, threading, queue, webbrowser
