@@ -247,9 +247,26 @@ This contains the SQLite database and thumbnail cache. Your original files are n
 
 ## Licence
 
-Copyright (c) 2025 Kaj Maney / liquidGuru
+Copyright (c) 2025-2026 Kaj Maney / liquidGuru
 
-Licensed under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/) — free for personal, non-commercial use with attribution. See [LICENSE](LICENSE) for full terms.
+idGuru uses two licences, because the code and the footage are different things:
+
+| What | Licence |
+|---|---|
+| **The software** — `underwater_indexer.py`, `idguru_main.py`, `launcher.pyw` | [AGPL-3.0](LICENSE) |
+| **The media and datasets** — screenshots under `docs/`, the author's underwater footage, and any species index derived from it | [CC BY-NC 4.0](LICENSE-MEDIA) |
+
+The code is free software: use it, modify it, run it, redistribute it. If you
+distribute a modified version — or run one as a network service — the AGPL
+requires you to make your source available under the same terms.
+
+The underwater footage is a working videographer's archive and is *not* free
+for commercial use. Commercial licensing of the media: kaj@liquidguru.com
+
+> idGuru was previously released under CC BY-NC 4.0. That is not an
+> OSI-approved open-source licence, so the software has been relicensed under
+> the AGPL. Releases already distributed under CC BY-NC remain available under
+> those terms.
 
 ---
 

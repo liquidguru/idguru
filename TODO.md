@@ -83,6 +83,6 @@ West Coast USA, East Coast USA, Australia / New Zealand, Mediterranean, Japan
 
 ## Distribution
 - GitHub: https://github.com/liquidguru/idguru
-- Licence: CC BY-NC 4.0 (free personal use, no commercial use without permission)
+- Licence: AGPL-3.0 for the code; CC BY-NC 4.0 for footage/screenshots/datasets (see LICENSE-MEDIA)
 - Contact: kaj@liquidguru.com
 - Posted on: Wetpixel (March 2026)
